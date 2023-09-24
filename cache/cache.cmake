@@ -38,6 +38,3 @@ add_executable(${__t})
 target_sources(${__t} PRIVATE ${CMAKE_CURRENT_LIST_DIR}/unit_test.cc)
 target_link_libraries(${__t} PRIVATE ${${module_name}_static})
 target_compile_definitions(${__t} PRIVATE ${${module_name}_static_tmain_ppcs}_MONKEY_TEST)
-
-
-message(${${module_name}_static_tmain_ppcs}_MONKEY_TEST)
