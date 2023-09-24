@@ -11,7 +11,7 @@ file(GLOB srcs ${CMAKE_CURRENT_LIST_DIR}/*.cc)
 set(${module_name}_common_pref
     MODULE_PREFIX kautil
     MODULE_NAME ${module_name}
-    INCLUDES $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}> $<INSTALL_INTERFACE:include> 
+    INCLUDES $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}> $<INSTALL_INTERFACE:include> ${CMAKE_CURRENT_LIST_DIR} 
     SOURCES ${srcs}
     #LINK_LIBS 
     EXPORT_NAME_PREFIX ${PROJECT_NAME}
@@ -22,6 +22,7 @@ set(${module_name}_common_pref
     DESTINATION_CMAKE_DIR cmake
     DESTINATION_LIB_DIR lib
 )
+
 
 CMakeLibraryTemplate(${module_name} EXPORT_LIB_TYPE static ${${module_name}_common_pref} )
 #CMakeLibraryTemplate(${module_name} EXPORT_LIB_TYPE shared ${${module_name}_common_pref} )

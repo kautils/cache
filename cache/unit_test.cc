@@ -15,15 +15,6 @@ int main(){
     };
 
 
-    {
-        kautil::cache::CacheFile x{};
-        x.set_file("test.cache");
-        x.add(123,1);
-        x.arrange_stack();
-    }
-    
-    
-    exit(0);
     
     
 //    for(;;)
