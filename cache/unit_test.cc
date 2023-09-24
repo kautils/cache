@@ -14,9 +14,6 @@ int main(){
         }
     };
 
-
-    
-    
 //    for(;;)
     {
         kautil::cache::Cache x{};
