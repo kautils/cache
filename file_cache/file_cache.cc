@@ -234,6 +234,7 @@ int tmain_kautil_cache_file_cache_static() {
         
 //        using value_type = uint64_t;
         using value_type = int64_t;
+        using offset_type = long;
         for(auto i = 0; i < 100 ; ++i){
             auto beg = value_type(i*10);
             auto end = beg+10;
@@ -253,47 +254,49 @@ int tmain_kautil_cache_file_cache_static() {
         
         //want nearelest pos
 //        auto want=550;
-        auto want=550;
+        value_type want=551;
         
+        auto exact = false;
         auto res = 0;
         auto pos = 0l;
-        auto max_size = long(st.st_size); 
-        auto min_size = long(0);
-        auto l_min_size = long(0);
+        auto upper_limit_size = st.st_size;
+        auto lower_limit_size = 0;
+        auto max_size = offset_type(st.st_size); 
+        auto min_size = offset_type(0);
         
         auto entire_direction = 1;
         auto entire_direction_init = false;
+        
         
         value_type lv;
         value_type rv(0);
         
         
-        auto lb = long(0);
-        auto rb = long(0);
+        auto lb = offset_type(0);
+        auto rb = offset_type(0);
 
         
         auto is_continue = true;
         while(is_continue){
-            auto mid = ((max_size-l_min_size) /  2 + l_min_size);
+            auto mid = ((max_size-min_size) /  2 + min_size);
             auto adj = mid % (sizeof(value_type)*2);
-            lb = static_cast<long>(mid - adj - (sizeof(value_type)*2));
-            rb = static_cast<long>(mid - adj );
-            min_size = (lb > l_min_size)*lb + !(lb > l_min_size)*min_size; 
+            lb = static_cast<offset_type>(mid - adj - (sizeof(value_type)*2));
+            rb = static_cast<offset_type>(mid - adj );
             
-            lb *= !(lb < 0);
-            rb = !(rb > st.st_size)*rb + (rb > st.st_size)*st.st_size; 
+            lb *= !(lb < lower_limit_size);
+            rb = !(rb > upper_limit_size)*rb + (rb > upper_limit_size)*upper_limit_size; 
             
             lseek(fd,lb,SEEK_SET);
             read(fd,&lv,sizeof(value_type));
             
-            res = /*((want == lv) * 0) +*/ ((want < lv)*-1) + ((want > lv) *1);  
-            pos=static_cast<long>(lb-(sizeof(value_type)*2)*bool(res));
+            res = /*((want == lv) * 0) +*/ ((want < lv)*-1) + ((want > lv)/* *1*/);  
+            pos=static_cast<offset_type>(lb-(sizeof(value_type)*2)*bool(res));
             
             if(res==1){
                 lseek(fd,rb,SEEK_SET);
                 read(fd,&rv,sizeof(value_type));
-                res = /*((want == rv) * 0) +*/ ((want > rv) *1);  
-                pos=static_cast<long>(rb+(sizeof(value_type)*2*bool(res)));
+                res = /*((want == rv) * 0) +*/ ((want > rv)/* *1*/);  
+                pos=static_cast<offset_type>(rb+(sizeof(value_type)*2*bool(res)));
             }
             
             entire_direction = (entire_direction_init)*entire_direction + !(entire_direction_init)*res; 
@@ -302,22 +305,23 @@ int tmain_kautil_cache_file_cache_static() {
             pos= (res>0)*pos;
             max_size=
                   (res>0)*((entire_direction==-1)*pos +!(entire_direction==-1)*max_size)
-                +!(res>0)*long(lb)/*max_size*/; 
+                +!(res>0)*offset_type(lb)/*max_size*/; 
             
-            l_min_size=static_cast<long>(
+            min_size=static_cast<offset_type>(
                   (res>0)*((entire_direction==-1)*(rb+(sizeof(value_type)*2)) +!(entire_direction==-1)*pos)
-                +!(res>0)*l_min_size );
+                +!(res>0)*min_size );
             
-            printf("%d %ld [%ld %ld] (%ld %ld) |%ld %ld|\n",res,pos,lb,rb,lv,rv,l_min_size,max_size); fflush(stdout);
+            printf("%d %ld [%ld %ld] (%ld %ld) |%ld %ld|\n",res,pos,lb,rb,lv,rv,min_size,max_size); fflush(stdout);
             
             is_continue= !( (res==0) + (mid==0) + (mid>=st.st_size) + (lb<=0)); 
         }
+
+        auto a = abs(want - rv); 
+        auto b = abs(want - lv);
+        auto nearest_pos = (a>b)*lb + (a<b)*rb; 
+        exact = (want == rv) + (want == lv);
         
-        
-        
-        int jjj = 0;
-        
-        
+        printf("%s\n. pos is %ld",exact?"found": "not found",nearest_pos);
     }
     
     return 0;
