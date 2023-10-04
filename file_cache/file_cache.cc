@@ -232,7 +232,8 @@ int tmain_kautil_cache_file_cache_static() {
             }
         }
         
-        using value_type = uint64_t;
+//        using value_type = uint64_t;
+        using value_type = int64_t;
         for(auto i = 0; i < 100 ; ++i){
             auto beg = value_type(i*10);
             auto end = beg+10;
@@ -244,38 +245,50 @@ int tmain_kautil_cache_file_cache_static() {
         }
         lseek(fd,0,SEEK_SET);
         
+        
+        
         struct stat st;
         fstat(fd,&st);
         
+        
+        //want nearelest pos
+//        auto want=550;
+        auto want=550;
+        
         auto res = 0;
         auto pos = 0l;
-        auto max_size = st.st_size; 
-        auto min_size = st.st_size;
-        auto want=-10;
+        auto max_size = long(st.st_size); 
+        auto min_size = long(0);
+        auto l_min_size = long(0);
+        
+        auto entire_direction = 1;
+        auto entire_direction_init = false;
+        
+        value_type lv;
+        value_type rv(0);
+        
+        
+        auto lb = long(0);
+        auto rb = long(0);
+
         
         auto is_continue = true;
         while(is_continue){
-            
-            auto mid = (max_size-pos) /  2 + pos;
+            auto mid = ((max_size-l_min_size) /  2 + l_min_size);
             auto adj = mid % (sizeof(value_type)*2);
-
-            min_size = (mid< min_size)*mid + !(mid< min_size)*min_size; 
-            
-            auto lb = static_cast<long>(mid - adj - (sizeof(value_type)*2));
-            auto rb = static_cast<long>(mid - adj );
+            lb = static_cast<long>(mid - adj - (sizeof(value_type)*2));
+            rb = static_cast<long>(mid - adj );
+            min_size = (lb > l_min_size)*lb + !(lb > l_min_size)*min_size; 
             
             lb *= !(lb < 0);
-            rb *= !(rb > st.st_size);
+            rb = !(rb > st.st_size)*rb + (rb > st.st_size)*st.st_size; 
             
-            
-            value_type lv;
             lseek(fd,lb,SEEK_SET);
             read(fd,&lv,sizeof(value_type));
             
             res = /*((want == lv) * 0) +*/ ((want < lv)*-1) + ((want > lv) *1);  
             pos=static_cast<long>(lb-(sizeof(value_type)*2)*bool(res));
             
-            value_type rv(0);
             if(res==1){
                 lseek(fd,rb,SEEK_SET);
                 read(fd,&rv,sizeof(value_type));
@@ -283,11 +296,19 @@ int tmain_kautil_cache_file_cache_static() {
                 pos=static_cast<long>(rb+(sizeof(value_type)*2*bool(res)));
             }
             
+            entire_direction = (entire_direction_init)*entire_direction + !(entire_direction_init)*res; 
+            entire_direction_init=true;
             
-            max_size = (res < 0)*long(lb) + !(res < 0)*max_size;
-            pos=!(res==-1)*pos;
-           
-            printf("%d %ld [%ld %ld] (%ld %ld)\n",res,pos,lb,rb,lv,rv); fflush(stdout);
+            pos= (res>0)*pos;
+            max_size=
+                  (res>0)*((entire_direction==-1)*pos +!(entire_direction==-1)*max_size)
+                +!(res>0)*long(lb)/*max_size*/; 
+            
+            l_min_size=static_cast<long>(
+                  (res>0)*((entire_direction==-1)*(rb+(sizeof(value_type)*2)) +!(entire_direction==-1)*pos)
+                +!(res>0)*l_min_size );
+            
+            printf("%d %ld [%ld %ld] (%ld %ld) |%ld %ld|\n",res,pos,lb,rb,lv,rv,l_min_size,max_size); fflush(stdout);
             
             is_continue= !( (res==0) + (mid==0) + (mid>=st.st_size) + (lb<=0)); 
         }
