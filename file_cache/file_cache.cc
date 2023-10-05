@@ -17,7 +17,11 @@ struct file_syscall_16b_pref{
     using offset_type = long;
 
     int fd=-1;
+    char * buffer = 0;
+    offset_type buffer_size = 0;
     
+    
+    ~file_syscall_16b_pref(){ free(buffer); }
     offset_type block_size(){ return sizeof(value_type)*2; }
     offset_type max_size(){
         struct stat st;
@@ -29,17 +33,9 @@ struct file_syscall_16b_pref{
         lseek(fd,offset,SEEK_SET);
         read(fd,*value,sizeof(value_type));
     }
-};
-
-
-struct syscall_pref{
-    using offset_type = long;
-    int fd = -1;
-    char * buffer = 0;
-    offset_type buffer_size = 0;
-    struct stat st;
     
-    ~syscall_pref(){ free(buffer); }
+    
+    struct stat st;
     void extend(offset_type extend_size){ 
         fstat(fd,&st);
         ftruncate(fd,st.st_size+extend_size);
@@ -60,6 +56,7 @@ struct syscall_pref{
         fstat(fd,&st);
         return static_cast<offset_type>(st.st_size); 
     }
+    
 };
 
 
@@ -69,25 +66,23 @@ struct syscall_pref{
 
 
 
-template<typename btree_prefix,typename region_prefix>
+template<typename btree_prefix>
 struct cache_internal{
     using offset_type = typename btree_prefix::offset_type;
     using value_type = typename btree_prefix::value_type;
     
-    cache_internal(btree_prefix* prfx,region_prefix * region_prfx) : prfx(prfx),region_prfx(region_prfx){}
+    cache_internal(btree_prefix* prfx) : prfx(prfx){}
     btree_prefix * prfx=0;
-    region_prefix * region_prfx=0;
 };
 
 
-template<typename btree_prefix,typename region_prefix>
+template<typename btree_prefix>
 struct cache{
     
     using offset_type = typename btree_prefix::offset_type;
     using value_type = typename btree_prefix::value_type;
-    static_assert(sizeof(typename btree_prefix::offset_type) == sizeof(typename region_prefix::offset_type));
     
-    cache(btree_prefix *  prf,region_prefix * region_prfx) : m(new cache_internal{prf,region_prfx}){}
+    cache(btree_prefix *  prf) : m(new cache_internal{prf}){}
     ~cache(){ delete m; }
     
     struct find_result{ bool found=false;offset_type position=0;int direction=0; };
@@ -98,18 +93,45 @@ struct cache{
     }
     
     void add(offset_type from){
-//        syscall_pref prf{.fd=fd};
-        auto extend_size =sizeof( value_type )*2;
+        auto extend_size =sizeof( value_type )*2; 
         auto buffer = 4096;
-        auto reg = region<region_prefix>{&m->region_prfx};
+        auto reg = region<btree_prefix>{m->prfx};
         reg.claim(from,extend_size,buffer);
-//        lseek(fd,from,SEEK_SET);
-//        write(fd,&input,extend_size);
+        //        lseek(fd,from,SEEK_SET);
+        //        write(fd,&input,extend_size);
+        
+        
+        {
+            auto fd = m->prfx->fd;
+            struct stat st;
+            fstat(fd,&st);
+            
+            auto c = '0';
+            for(auto i = 0; i < st.st_size; ++i ){
+                lseek(fd,i+from,SEEK_SET);
+                write(fd,&c,sizeof(char));
+            }
+            
+            auto cnt = 0;
+            lseek(fd,0,SEEK_SET);
+            auto start = from;
+            auto end = from+extend_size;
+            for(auto i = 0;i < st.st_size;++i){
+                if((2== ( (start<=i) + (i<end))) ){
+                    lseek(fd,i,SEEK_SET);
+                    read(fd,&c,sizeof(c));
+                    if(0==(cnt)%10) printf("\n");
+                    printf("%08x ",c);
+                }
+                ++cnt;
+            }
+        }
+        
         
         
     }
     
-    cache_internal<btree_prefix,region_prefix> * m = 0;
+    cache_internal<btree_prefix/*,region_prefix*/> * m = 0;
 };
 
 
@@ -157,8 +179,8 @@ int tmain_kautil_cache_file_cache_static() {
     
     file_syscall_16b_pref::value_type input[2] = {11,15};
     auto pref = file_syscall_16b_pref{.fd=fd};
-    auto region_prfx=syscall_pref{.fd=fd};
-    auto a = cache{&pref,&region_prfx};
+//    auto region_prfx=syscall_pref{.fd=fd};
+    auto a = cache{&pref/*,&region_prfx*/};
     
     
     auto fw = a.find(input[0]);
@@ -175,24 +197,8 @@ int tmain_kautil_cache_file_cache_static() {
     }else{// there is not overlap
         // add
         printf("there is not overlap");
-//        {
-//            struct stat st;
-//            auto c = '0';
-//            fstat(fd,&st);
-//            auto cnt = 0;
-//            lseek(fd,0,SEEK_SET);
-//            auto start = from;
-//            auto end = from+extend_size;
-//            for(auto i = 0;i < st.st_size;++i){
-//                if((2== ( (start<=i) + (i<end))) ){
-//                    lseek(fd,i,SEEK_SET);
-//                    read(fd,&c,sizeof(c));
-//                    if(0==(cnt)%10) printf("\n");
-//                    printf("%08x ",c);
-//                }
-//                ++cnt;
-//            }
-//        }
+        a.add(fw.position+fw.direction*sizeof(decltype(a)::value_type)*2);
+        
     }
     
     return 0;
