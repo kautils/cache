@@ -33,9 +33,20 @@ struct file_syscall_16b_pref{
         read(fd,*value,sizeof(value_type));
     }
     
+    bool write_value(offset_type const& offset, value_type ** value){
+        lseek(fd,offset,SEEK_SET);
+        return sizeof(value_type)==::write(fd,*value,sizeof(value_type));
+    }
+    
+    bool write(offset_type const& offset, void ** data, offset_type size){
+        lseek(fd,offset,SEEK_SET);
+        // todo : size check
+        return sizeof(value_type)==::write(fd,*data,size);
+    }
+    
     
     void extend(offset_type extend_size){ fstat(fd,&st);ftruncate(fd,st.st_size+extend_size); }
-    int write(offset_type dst,offset_type src,offset_type size){
+    int shift(offset_type dst,offset_type src,offset_type size){
         if(buffer_size < size){
             if(buffer)free(buffer);
             buffer = (char*) malloc(buffer_size = size);
@@ -46,9 +57,23 @@ struct file_syscall_16b_pref{
         ::write(fd,buffer,size);
         return 0;
     }
+};
+
+
+template <typename prefix>
+struct rw{
     
+    using offset_type = typename prefix::offset_type;
+    using value_type = typename prefix::value_type;
     
+    rw(prefix * prfx) : m(prfx){}
+    bool write(offset_type const& offset,void ** data,offset_type size){ 
+        return m->write(offset,data,size); 
+    }
+    bool write_value(offset_type const& offset, value_type ** value){ return m->write_value(offset,value); }
+    void read_value(offset_type const& offset, value_type ** value){ m->read_value(offset,value); }
     
+    prefix * m=0;
 };
 
 
@@ -84,44 +109,52 @@ struct cache{
         return res;
     }
     
-    void add(offset_type from){
-        auto extend_size =sizeof( value_type )*2; 
-        auto buffer = 4096;
+    offset_type buffer = 4096;
+    constexpr inline static auto kBlockSize =sizeof( value_type )*2; 
+    
+    void add_block(offset_type from,value_type continuous[2]){
         auto reg = region<btree_prefix>{m->prfx};
-        reg.claim(from,extend_size,buffer);
-        //        lseek(fd,from,SEEK_SET);
-        //        write(fd,&input,extend_size);
+        reg.claim(from,kBlockSize,buffer);
+        rw<btree_prefix>(m->prfx).write(from,(void**)&continuous,sizeof(value_type)*2);
+    }
+    
+    void add(offset_type from,value_type * fw,value_type * bw){
+        auto reg = region<btree_prefix>{m->prfx};
+        reg.claim(from,kBlockSize,buffer);
+        rw<btree_prefix>(m->prfx).write_value(from,&fw);
+        rw<btree_prefix>(m->prfx).write_value(from+sizeof(value_type),&bw);
         
-        
+    }
+    
+    void debug_out_block(FILE* outto,offset_type from){
         {
             auto fd = m->prfx->fd;
             struct stat st;
             fstat(fd,&st);
             
             auto c = '0';
-            for(auto i = 0; i < st.st_size; ++i ){
-                lseek(fd,i+from,SEEK_SET);
-                write(fd,&c,sizeof(char));
-            }
+//            for(auto i = 0; i < st.st_size; ++i ){
+//                lseek(fd,i+from,SEEK_SET);
+//                write(fd,&c,sizeof(char));
+//            }
             
             auto cnt = 0;
             lseek(fd,0,SEEK_SET);
             auto start = from;
-            auto end = from+extend_size;
+            auto end = from+kBlockSize;
             for(auto i = 0;i < st.st_size;++i){
                 if((2== ( (start<=i) + (i<end))) ){
                     lseek(fd,i,SEEK_SET);
                     read(fd,&c,sizeof(c));
-                    if(0==(cnt)%10) printf("\n");
-                    printf("%08x ",c);
+                    if(0==(cnt)%10) fprintf(outto,"\n");
+                    fprintf(outto,"%08x ",c);
                 }
                 ++cnt;
             }
         }
         
-        
-        
     }
+    
     
     cache_internal<btree_prefix/*,region_prefix*/> * m = 0;
 };
@@ -189,8 +222,10 @@ int tmain_kautil_cache_file_cache_static() {
     }else{// there is not overlap
         // add
         printf("there is not overlap");
-        a.add(fw.position+fw.direction*sizeof(decltype(a)::value_type)*2);
-        
+        auto from = fw.position+fw.direction*sizeof(decltype(a)::value_type)*2;
+//        a.add(from,&input[0],&input[1]);
+        a.add_block(from,input);
+        a.debug_out_block(stderr,from);
     }
     
     return 0;
