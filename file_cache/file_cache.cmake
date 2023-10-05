@@ -5,6 +5,14 @@ include(${CMAKE_BINARY_DIR}/CMakeKautilHeader.cmake)
 git_clone(https://raw.githubusercontent.com/kautils/CMakeLibrarytemplate/v0.0.1/CMakeLibrarytemplate.cmake)
 
 
+list(APPEND CMAKE_PREFIX_PATH 
+        ${CMAKE_BINARY_DIR}/region
+        ${CMAKE_BINARY_DIR}/kautil.algorithm.btree_search
+        )
+list(REMOVE_DUPLICATES CMAKE_PREFIX_PATH)
+find_package(KautilRegion.0.0.1.interface REQUIRED)
+find_package(KautilAlgorithmBtreeSearch.1.0.1.interface REQUIRED)
+
 set(module_name file_cache)
 unset(srcs)
 file(GLOB srcs ${CMAKE_CURRENT_LIST_DIR}/*.cc)
@@ -14,7 +22,7 @@ set(${module_name}_common_pref
     MODULE_NAME ${module_name}
     INCLUDES $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}> $<INSTALL_INTERFACE:include> ${CMAKE_CURRENT_LIST_DIR} 
     SOURCES ${srcs}
-    #LINK_LIBS 
+    LINK_LIBS kautil::region::0.0.1::interface kautil::algorithm::btree_search::1.0.1::interface
     EXPORT_NAME_PREFIX ${PROJECT_NAME}
     EXPORT_VERSION ${PROJECT_VERSION}
     EXPORT_VERSION_COMPATIBILITY AnyNewerVersion
