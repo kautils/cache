@@ -9,6 +9,8 @@ int mkdir_recurst(char * p);
 
 #include <stdint.h>
 #include <stdio.h>
+#include <unistd.h>
+#include <stdlib.h>
 
 struct file_syscall_16b_pref{
     using value_type = uint64_t;
@@ -30,10 +32,91 @@ struct file_syscall_16b_pref{
 };
 
 
+struct syscall_pref{
+    using offset_type = long;
+    int fd = -1;
+    char * buffer = 0;
+    offset_type buffer_size = 0;
+    struct stat st;
+    
+    ~syscall_pref(){ free(buffer); }
+    void extend(offset_type extend_size){ 
+        fstat(fd,&st);
+        ftruncate(fd,st.st_size+extend_size);
+    }
+    int write(offset_type dst,offset_type src,offset_type size){
+        if(buffer_size < size){
+            if(buffer)free(buffer);
+            buffer = (char*) malloc(buffer_size = size);
+        }
+        lseek(fd,src,SEEK_SET);
+        ::read(fd,buffer,size);
+        lseek(fd,dst,SEEK_SET);
+        ::write(fd,buffer,size);
+        return 0;
+    }
+    
+    offset_type size(){ 
+        fstat(fd,&st);
+        return static_cast<offset_type>(st.st_size); 
+    }
+};
+
+
+
+
 #include <string>
 
-int tmain_kautil_cache_file_cache_static() {
 
+
+template<typename btree_prefix,typename region_prefix>
+struct cache_internal{
+    using offset_type = typename btree_prefix::offset_type;
+    using value_type = typename btree_prefix::value_type;
+    
+    cache_internal(btree_prefix* prfx,region_prefix * region_prfx) : prfx(prfx),region_prfx(region_prfx){}
+    btree_prefix * prfx=0;
+    region_prefix * region_prfx=0;
+};
+
+
+template<typename btree_prefix,typename region_prefix>
+struct cache{
+    
+    using offset_type = typename btree_prefix::offset_type;
+    using value_type = typename btree_prefix::value_type;
+    static_assert(sizeof(typename btree_prefix::offset_type) == sizeof(typename region_prefix::offset_type));
+    
+    cache(btree_prefix *  prf,region_prefix * region_prfx) : m(new cache_internal{prf,region_prfx}){}
+    ~cache(){ delete m; }
+    
+    struct find_result{ bool found=false;offset_type position=0;int direction=0; };
+    find_result find(uint64_t search_v){ 
+        auto res =find_result{};
+        res.found=kautil::algorithm::btree_search{m->prfx}.search(static_cast<value_type>(search_v),&res.position,&res.direction); 
+        return res;
+    }
+    
+    void add(offset_type from){
+//        syscall_pref prf{.fd=fd};
+        auto extend_size =sizeof( value_type )*2;
+        auto buffer = 4096;
+        auto reg = region<region_prefix>{&m->region_prfx};
+        reg.claim(from,extend_size,buffer);
+//        lseek(fd,from,SEEK_SET);
+//        write(fd,&input,extend_size);
+        
+        
+    }
+    
+    cache_internal<btree_prefix,region_prefix> * m = 0;
+};
+
+
+
+int tmain_kautil_cache_file_cache_static() {
+    
+    
     auto dir = (char*)"tmain_kautil_cache_file_cache_static";
     auto fn = (char*)".cache";
     
@@ -55,9 +138,13 @@ int tmain_kautil_cache_file_cache_static() {
             fd = open(f,O_RDWR);
         }
     }
+    
+    auto cnt = 0;
     for(auto i = 0; i < 100 ; ++i){
-        auto beg = file_syscall_16b_pref::value_type(i*10);
+        auto beg = file_syscall_16b_pref::value_type(cnt*10);
         auto end = beg+10;
+        cnt+=2;
+        
         auto cur = tell(fd);
         auto block_size = sizeof(file_syscall_16b_pref::value_type);
         write(fd,&beg,block_size);
@@ -68,15 +155,45 @@ int tmain_kautil_cache_file_cache_static() {
     lseek(fd,0,SEEK_SET);
     
     
-    
-    auto search_v=file_syscall_16b_pref::value_type(550);
+    file_syscall_16b_pref::value_type input[2] = {11,15};
     auto pref = file_syscall_16b_pref{.fd=fd};
-    auto bt = kautil::algorithm::btree_search{&pref};
-    auto pos = file_syscall_16b_pref::offset_type(0);
-    auto direction = int(0);
-    auto found = bt.search(static_cast<file_syscall_16b_pref::value_type>(search_v),&pos,&direction);
-    printf("%s. pos is %ld. direction is %d\n",found?"found": "not found",pos,direction);
-
+    auto region_prfx=syscall_pref{.fd=fd};
+    auto a = cache{&pref,&region_prfx};
+    
+    
+    auto fw = a.find(input[0]);
+    auto bw = a.find(input[1]);
+    if(fw.found + bw.found){ // there is overlap
+        printf("there is overlap");
+        bool is_partial = false;
+        if(is_partial){
+            // merge
+        }else{
+            // nothing
+        }
+         //printf("found. pos %ld direction %d\n",a.pos(),a.direction());
+    }else{// there is not overlap
+        // add
+        printf("there is not overlap");
+//        {
+//            struct stat st;
+//            auto c = '0';
+//            fstat(fd,&st);
+//            auto cnt = 0;
+//            lseek(fd,0,SEEK_SET);
+//            auto start = from;
+//            auto end = from+extend_size;
+//            for(auto i = 0;i < st.st_size;++i){
+//                if((2== ( (start<=i) + (i<end))) ){
+//                    lseek(fd,i,SEEK_SET);
+//                    read(fd,&c,sizeof(c));
+//                    if(0==(cnt)%10) printf("\n");
+//                    printf("%08x ",c);
+//                }
+//                ++cnt;
+//            }
+//        }
+    }
     
     return 0;
 }
