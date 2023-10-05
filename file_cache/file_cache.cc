@@ -19,27 +19,22 @@ struct file_syscall_16b_pref{
     int fd=-1;
     char * buffer = 0;
     offset_type buffer_size = 0;
-    
+    struct stat st;
     
     ~file_syscall_16b_pref(){ free(buffer); }
     offset_type block_size(){ return sizeof(value_type)*2; }
-    offset_type max_size(){
-        struct stat st;
-        fstat(fd,&st);
-        return static_cast<uint64_t>(st.st_size);
-    }
-
+    
+    // todo: bad. max_size == size
+    offset_type max_size(){ fstat(fd,&st);return static_cast<uint64_t>(st.st_size); }
+    offset_type size(){ fstat(fd,&st);return static_cast<offset_type>(st.st_size); }
+    
     void read_value(offset_type const& offset, value_type ** value){
         lseek(fd,offset,SEEK_SET);
         read(fd,*value,sizeof(value_type));
     }
     
     
-    struct stat st;
-    void extend(offset_type extend_size){ 
-        fstat(fd,&st);
-        ftruncate(fd,st.st_size+extend_size);
-    }
+    void extend(offset_type extend_size){ fstat(fd,&st);ftruncate(fd,st.st_size+extend_size); }
     int write(offset_type dst,offset_type src,offset_type size){
         if(buffer_size < size){
             if(buffer)free(buffer);
@@ -52,10 +47,7 @@ struct file_syscall_16b_pref{
         return 0;
     }
     
-    offset_type size(){ 
-        fstat(fd,&st);
-        return static_cast<offset_type>(st.st_size); 
-    }
+    
     
 };
 
