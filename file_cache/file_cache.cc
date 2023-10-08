@@ -108,43 +108,52 @@ struct cache{
     
     cache(btree_preference *  prf) : m(new cache_internal{prf}){}
     ~cache(){ delete m; }
-    
     struct find_result{ bool exact=false;offset_type position=0;int direction=0; };
+    
+    
+    
     find_result merge(value_type input[2]){ 
         value_type diff = 1;
         
         auto res =find_result{};
         auto btres =kautil::algorithm::btree_search{m->prfx}.search(static_cast<value_type>(input[0])/*, &res.position, &res.direction*/); 
-        auto block=m->prfx->block_size();
+        auto block_size=m->prfx->block_size();
         auto max_size=m->prfx->size();
         auto start_block =btres.pos; 
         value_type cmp[2];
         value_type new_block[2]={input[0],input[1]};
         
         
-        auto block_cnt=-1;
+        auto gap_cnt=-1;
         auto end_block = start_block; 
-        for(auto i = start_block; i < max_size; i+=block ){
+        for(auto i = start_block; i < max_size; i+=block_size ){
             read_block(i,cmp);
             printf("input[1] < cmp[0] : %lld %lld\n",input[1],cmp[0]); fflush(stdout);
-            auto cond = bool((input[1] >= cmp[0])+((input[1] - cmp[0]) < diff));
-            if((start_block<i) && !cond) break;
+            auto cond = bool((input[1] >= cmp[0])+((cmp[0]-input[1]) <= diff));
+            if(/*(start_block<i) && */!cond) break;
             new_block[1] =cmp[1];
-            ++block_cnt;
+            ++gap_cnt;
         }
-        printf("cnt(%d) %ld %lld\n",block_cnt,btres.pos,new_block[1]); fflush(stdout);
-        if(block_cnt){
-            printf("need to change the size of range\n"); fflush(stdout);
-        }else{
+        printf("cnt(%d) %ld %lld\n",gap_cnt,btres.pos,new_block[1]); fflush(stdout);
+        
+        auto write_buffer_size=4096;
+        if(gap_cnt > 0) { // possible to shrink region
+            printf("need to shrink the size of range\n");fflush(stdout);
+            auto end_block = start_block + (block_size * (gap_cnt+1) );
+            auto shrink_size = -block_size*gap_cnt;
+            write_block(start_block,new_block);
+            region{m->prfx}.shrink(end_block,shrink_size,write_buffer_size);
+            
+        }else if(gap_cnt < 0){ // block is unique. must extend region for that block. 
+            printf("need to extend the size of range\n");fflush(stdout);
+            region{m->prfx}.claim(start_block,block_size,write_buffer_size);
+            write_block(start_block,input);
+        }else{ // block is contained by the first one. possible to merge them. 
             printf("need not to change the size of range\n"); fflush(stdout);
             printf("write (%ld,b(%lld),e(%lld))\n",start_block,new_block[0],new_block[1]); fflush(stdout);
             write_block(start_block,new_block);
-            //printf("cnt(%d) %ld %ld",block_cnt,btres.pos,end_pos); fflush(stdout);
         }
         
-        
-//        btres.pos;
-//        btres.direction;
 
 
         return res;
@@ -212,6 +221,7 @@ struct cache{
             fstat(fd,&st);
             
             auto c = '0';
+            
 //            for(auto i = 0; i < st.st_size; ++i ){
 //                lseek(fd,i+from,SEEK_SET);
 //                write(fd,&c,sizeof(char));
@@ -283,13 +293,17 @@ int tmain_kautil_cache_file_cache_static() {
     
 
     {
-        file_syscall_16b_pref::value_type input[2] = {155,160}; 
+        // 140 150 155 158 160 170
+//        file_syscall_16b_pref::value_type input[2] = {155,159}; // case : no extend  
+        //file_syscall_16b_pref::value_type input[2] = {155,158}; // case : extend  
+        file_syscall_16b_pref::value_type input[2] = {135,175}; // case : shrink  
         auto pref = file_syscall_16b_pref{.fd=fd};
         auto a = cache{&pref};
-        a.debug_out_file(stdout,112,144);
-        auto fw = a.merge(input);
-        a.debug_out_file(stdout,112,144);
         
+        
+        a.debug_out_file(stdout,60,240);
+        auto fw = a.merge(input);
+        a.debug_out_file(stdout,60,240);
         
         
         return 0;
