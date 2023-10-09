@@ -45,8 +45,8 @@ struct file_syscall_16b_pref{
     }
     
     // api may make a confusion but correct. this is because to avoid copy of value(object such as bigint) for future.
-    bool read(offset_type const& offset, void ** data, offset_type size){
-        lseek(fd,offset,SEEK_SET);
+    bool read(offset_type const& from, void ** data, offset_type size){
+        lseek(fd,from,SEEK_SET);
         return size==::read(fd,*data,size);
     }
     
@@ -164,9 +164,6 @@ struct cache{
     
     cache(btree_preference *  prf) : m(new cache_internal{prf}){}
     ~cache(){ delete m; }
-    struct find_result{ bool exact=false;offset_type position=0;int direction=0; };
-    
-    
     
     bool exists(value_type input[2]){
         auto btres =kautil::algorithm::btree_search{m->prfx}.search(static_cast<value_type>(input[0]),false);
@@ -228,12 +225,100 @@ struct cache{
         return 0;
     }
     
-    find_result find(uint64_t from,uint64_t to){ 
-        auto res =find_result{};
-        auto btres =kautil::algorithm::btree_search{m->prfx}.search(static_cast<value_type>(from)/*, &res.position, &res.direction*/); 
-        return res;
-    }
     
+//    struct find_block_result{offset_type pos=0; bool found=false;};
+//    ///@note find the block to which [v] belongs
+//    find_block_result find_block(value_type v){
+//        auto info = kautil::algorithm::btree_search{m->prfx}.search(v);
+//        auto cmp = value_type(0);
+//        read(info.nearest_pos-8,&cmp,sizeof(value_type));
+//        
+//        auto res=find_block_result{};
+//        res.found = !info.is_overflow;
+//    }
+    
+
+
+
+    value_type adjust_nearest_pos(value_type nearest_pos,value_type input){
+        if(!nearest_pos)return nearest_pos;
+        auto info_bw = value_type(0);
+        auto info_bw_ptr = &info_bw;
+        m->prfx->read(nearest_pos-sizeof(value_type),(void**)&info_bw_ptr,sizeof(value_type));
+        return nearest_pos+ (info_bw >= input)*-m->prfx->block_size();
+    }
+
+
+    struct gap_context{ value_type * gap = 0;uint64_t gap_len = 0; value_type * entity=0; };
+    void gap_context_free(gap_context * ctx){ delete ctx->entity; delete ctx; }
+    gap_context* gap(value_type input[2]){ 
+        
+        
+        // find block
+        auto info0 = kautil::algorithm::btree_search{m->prfx}.search(input[0]);
+        auto info1 = kautil::algorithm::btree_search{m->prfx}.search(input[1]);
+        
+        printf("%lld\n",info0.neighbor_value);
+        printf("%lld\n",info1.neighbor_value);
+        //info1.neighbor_value;
+        
+        
+        
+        /* initialize beg/end. there is 4 case. 
+         overflow & overflow
+         overflow & found
+         found & overflow
+         found % found */
+        auto ovf = info0.overflow + info1.overflow;
+        auto beg = info0.overflow ? 0:adjust_nearest_pos(info0.nearest_pos,input[0]);
+        auto end = info1.overflow ? m->prfx->size(): adjust_nearest_pos(info1.nearest_pos,input[1]);
+        printf("[initialize beg/end] (%lld %lld)\n",beg,end); fflush(stdout);
+        
+        
+        // read into memory
+        auto gap = (value_type*)0;
+        auto gap_len = (end-beg)/sizeof(value_type);
+        
+        // block size 
+        if(gap_len < 2) return nullptr;
+        auto gap_org = gap = new value_type[gap_len+2];
+        if(gap_len > 2){
+            gap_len+=2;
+            // 1 element right shift
+            auto arr_ptr = gap+1;
+            m->prfx->read(beg,(void**)&arr_ptr,end-beg);
+            gap[0] = input[0];
+            gap[gap_len-1] = input[1];
+            
+            // remove same value. in case of being added the same value to the poles.
+            gap_len -= (gap[gap_len-1]==gap[gap_len-2])*(2);
+            gap_len -= (gap[0]==gap[1])*(2);
+            gap += (gap[0]==gap[1])*(2);
+            
+        } else if(gap_len == 2){
+            m->prfx->read(beg,(void**)&gap,end-beg);
+            
+            gap_len = 0;
+            if(input[1] > gap[1]){
+              gap[3] = 
+                        (1 ==info1.direction)*(info1.nearest_value-1)
+                      +!(1 ==info1.direction)*(input[1]-1);
+              gap[2] = gap[1]+1;
+              gap_len+=2;
+            }
+            
+            if(input[0] < gap[0]){
+              gap[1] =gap[0]-1;
+              gap[0] = input[0]+!info0.direction;
+              gap_len+=2;
+            }else gap = &gap[2]; 
+        }
+        
+        for(auto i = 0; i < gap_len; i+=2)printf("%lld %lld\n",gap[i],gap[i+1]);
+        return new gap_context{.gap = gap,.gap_len=gap_len,.entity=gap_org};
+        
+        exit(0);
+    }
     
     
     offset_type buffer = 4096;
@@ -368,22 +453,53 @@ int tmain_kautil_cache_file_cache_static() {
         auto a = cache{&pref};
         auto fw = a.merge(input);
         
-        file_struct_type::value_type ij [2]={0,10}; // case : shrink  
-        auto res = a.exists(ij);
-        printf("%d\n",a.exists(ij));
         
-        for(int i = 0; i < 1000; i+=10){
-            for(int j = 0; j < 1000; j+=10){
-                ij[0] = i;
-                ij[1] = j;
-                auto res = a.exists(ij);
-                if(res){
-                    printf("%d [%lld,%lld]\n",a.exists(ij),ij[0],ij[1]);fflush(stdout);
+
+        {// gap
+//            file_struct_type::value_type input[2] ={890,925}; 
+//            file_struct_type::value_type input[2] ={911,935}; 
+//            file_struct_type::value_type input[2] ={911,951}; 
+//            file_struct_type::value_type input[2] ={920,950}; 
+            file_struct_type::value_type input[2] ={920,951}; 
+            if(auto ctx = a.gap(input)){
+                for(auto i = 0; i < ctx->gap_len; i+=2){
+                    printf("%lld %lld\n",ctx->gap[i],ctx->gap[i+1]);
                 }
+                a.gap_context_free(ctx);
+            }else{
+                printf("there is no gap\n");
             }
         }
         
-        //a.debug_out_file(stdout,fd,0,2000);
+        {// show result
+            a.debug_out_file(stdout,fd,0,2000);
+        }
+        
+        exit(0);
+        
+        
+        
+
+
+        {
+            file_struct_type::value_type ij [2]={0,10}; // case : shrink  
+            auto res = a.exists(ij);
+            printf("%d\n",a.exists(ij));
+            for(int i = 0; i < 1000; i+=10){
+                for(int j = 0; j < 1000; j+=10){
+                    ij[0] = i;
+                    ij[1] = j;
+                    auto res = a.exists(ij);
+                    if(res){
+                        printf("%d [%lld,%lld]\n",a.exists(ij),ij[0],ij[1]);fflush(stdout);
+                    }
+                }
+            }
+        }
+
+        {// show result
+            a.debug_out_file(stdout,fd,0,2000);
+        }
         
         
         
