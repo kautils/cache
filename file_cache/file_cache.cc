@@ -1,3 +1,6 @@
+// todo : refactor api (e.g : max_size => size, void read => int read)
+
+
 #include <stdio.h>
 
 
@@ -6,13 +9,12 @@
 #include "kautil/region/region.hpp"
 #include "kautil/algorithm/btree_search/btree_search.hpp"
 
-int mkdir_recurst(char * p);
-
-
 #include <string>
 #include <stdint.h>
 #include <unistd.h>
 #include <stdlib.h>
+int mkdir_recurst(char * p);
+
 
 struct file_syscall_16b_pref{
     using value_type = uint64_t;
@@ -25,9 +27,6 @@ struct file_syscall_16b_pref{
     
     ~file_syscall_16b_pref(){ free(buffer); }
     offset_type block_size(){ return sizeof(value_type)*2; }
-    
-    // todo: bad. max_size == size
-    offset_type max_size(){ fstat(fd,&st);return static_cast<uint64_t>(st.st_size); }
     offset_type size(){ fstat(fd,&st);return static_cast<offset_type>(st.st_size); }
     
     void read_value(offset_type const& offset, value_type ** value){
@@ -54,20 +53,80 @@ struct file_syscall_16b_pref{
     }
     
     
-    void extend(offset_type extend_size){ fstat(fd,&st);ftruncate(fd,st.st_size+extend_size); }
+    bool extend(offset_type extend_size){ fstat(fd,&st); return !ftruncate(fd,st.st_size+extend_size);   }
     int shift(offset_type dst,offset_type src,offset_type size){
         if(buffer_size < size){
             if(buffer)free(buffer);
             buffer = (char*) malloc(buffer_size = size);
         }
         lseek(fd,src,SEEK_SET);
-        ::read(fd,buffer,size);
+        auto read_size = ::read(fd,buffer,size);
         lseek(fd,dst,SEEK_SET);
-        ::write(fd,buffer,size);
+        ::write(fd,buffer,read_size);
         return 0;
     }
 };
 
+
+struct file_capi {
+    using value_type = uint64_t;
+    using offset_type = long;
+    
+    FILE* f=0;
+    char * buffer = 0;
+    offset_type buffer_size = 0;
+    struct stat st;
+    
+    ~file_capi(){ free(buffer); }
+    offset_type block_size(){ return sizeof(value_type)*2; }
+    offset_type size(){ fstat(fileno(f),&st);return static_cast<offset_type>(st.st_size); }
+    
+    bool read_value(offset_type const& offset, value_type ** value){
+        fseek(f,offset,SEEK_SET);
+        return sizeof(value_type) == fread(*value,1,sizeof(value_type),f);
+    }
+    
+    bool write_value(offset_type const& offset, value_type ** value){
+        fseek(f,offset,SEEK_SET);
+        return sizeof(value_type)==::fwrite(*value,1,sizeof(value_type),f);
+    }
+    
+    bool write(offset_type const& offset, void ** data, offset_type size){
+        fseek(f,offset,SEEK_SET);
+        return size==::fwrite(*data,1,size,f);
+    }
+    
+    // api may make a confusion but correct. this is because to avoid copy of value(object such as bigint) for future.
+    bool read(offset_type const& offset, void ** data, offset_type size){
+        fseek(f,offset,SEEK_SET);
+        return size==::fread(*data,1,size,f);
+    }
+    
+    bool extend(offset_type extend_size){ 
+        fstat(fileno(f),&st);
+        return !ftruncate(fileno(f),st.st_size+extend_size); 
+    }
+    
+    
+    int shift(offset_type dst,offset_type src,offset_type size){
+        if(buffer_size < size){
+            if(buffer)free(buffer);
+            buffer = (char*) malloc(buffer_size = size);
+        }
+        fseek(f,src,SEEK_SET);
+        auto read_size = ::fread(buffer,1,size,f);
+        fflush(f);
+        fseek(f,dst,SEEK_SET);
+        auto write_size = fwrite(buffer,1,read_size,f);
+        fflush(f);
+        return 0;
+    }
+    
+
+    
+    
+    
+};
 
 template <typename prefix>
 struct rw{
@@ -128,34 +187,34 @@ struct cache{
         auto end_block = start_block; 
         for(auto i = start_block; i < max_size; i+=block_size ){
             read_block(i,cmp);
-            printf("input[1] < cmp[0] : %lld %lld\n",input[1],cmp[0]); fflush(stdout);
             auto cond = bool((input[1] >= cmp[0])+((cmp[0]-input[1]) <= diff));
             if(/*(start_block<i) && */!cond) break;
             new_block[1] =cmp[1];
             ++gap_cnt;
         }
-        printf("cnt(%d) %ld %lld\n",gap_cnt,btres.pos,new_block[1]); fflush(stdout);
         
-        auto write_buffer_size=4096;
+        auto write_buffer_size=512;
+        auto left_pos = 
+                     (btres.neighbor_pos < btres.pos)*btres.neighbor_pos 
+                   +!(btres.neighbor_pos < btres.pos)*btres.pos;
+        auto rpos = 
+                     !(btres.neighbor_pos < btres.pos)*btres.neighbor_pos 
+                     +(btres.neighbor_pos < btres.pos)*btres.pos;
         if(gap_cnt > 0) { // possible to shrink region
-            printf("need to shrink the size of range\n");fflush(stdout);
             auto end_block = start_block + (block_size * (gap_cnt+1) );
-            auto shrink_size = -block_size*gap_cnt;
+            auto shrink_size = block_size*gap_cnt;
             write_block(start_block,new_block);
-            region{m->prfx}.shrink(end_block,shrink_size,write_buffer_size);
-            
+            //printf("%ld %ld %d\n",end_block,shrink_size,write_buffer_size); fflush(stdout); 
+            kautil::region{m->prfx}.shrink(end_block,shrink_size,write_buffer_size);
         }else if(gap_cnt < 0){ // block is unique. must extend region for that block. 
-            printf("need to extend the size of range\n");fflush(stdout);
-            region{m->prfx}.claim(start_block,block_size,write_buffer_size);
-            write_block(start_block,input);
-        }else{ // block is contained by the first one. possible to merge them. 
-            printf("need not to change the size of range\n"); fflush(stdout);
-            printf("write (%ld,b(%lld),e(%lld))\n",start_block,new_block[0],new_block[1]); fflush(stdout);
+            kautil::region{m->prfx}.claim(rpos,block_size,write_buffer_size);
+            write_block(rpos,input);
+        }else{ // block is contained by (or has overlap with) the first one. possible to merge them. 
+            //printf("write (%ld,b(%lld),e(%lld))\n",start_block,new_block[0],new_block[1]); fflush(stdout);
             write_block(start_block,new_block);
         }
         
-
-
+        fflush(m->prfx->f);
         return res;
     }
     
@@ -171,31 +230,30 @@ struct cache{
     constexpr inline static auto kBlockSize =sizeof( value_type )*2; 
     
     
-    void read_block(offset_type from,value_type continuous[2]){
-        rw<btree_preference>(m->prfx).read(from,(void**)&continuous,sizeof(value_type)*2);
+    bool read_block(offset_type from,value_type continuous[2]){
+      return rw<btree_preference>(m->prfx).read(from,(void**)&continuous,sizeof(value_type)*2);
     }
-    void write_block(offset_type from,value_type continuous[2]){
-        rw<btree_preference>(m->prfx).write(from,(void**)&continuous,sizeof(value_type)*2);
+    bool write_block(offset_type from,value_type continuous[2]){
+       return rw<btree_preference>(m->prfx).write(from,(void**)&continuous,sizeof(value_type)*2);
     }
     
     
     void add_block(offset_type from,value_type continuous[2]){
-        auto reg = region<btree_preference>{m->prfx};
+        auto reg = kautil::region<btree_preference>{m->prfx};
         reg.claim(from,kBlockSize,buffer);
         rw<btree_preference>(m->prfx).write(from,(void**)&continuous,sizeof(value_type)*2);
     }
     
     void add(offset_type from,value_type * fw,value_type * bw){
-        auto reg = region<btree_preference>{m->prfx};
+        auto reg = kautil::region<btree_preference>{m->prfx};
         reg.claim(from,kBlockSize,buffer);
         rw<btree_preference>(m->prfx).write_value(from,&fw);
         rw<btree_preference>(m->prfx).write_value(from+sizeof(value_type),&bw);
         
     }
     
-    void debug_out_file(FILE* outto,offset_type from,offset_type to){
+    void debug_out_file(FILE* outto,int fd,offset_type from,offset_type to){
         {
-            auto fd = m->prfx->fd;
             struct stat st;
             fstat(fd,&st);
             auto cnt = 0;
@@ -207,7 +265,7 @@ struct cache{
             for(auto i = 0; i< size; i+=(sizeof(value_type)*2)){
                 if(from <= i && i<= to ){
                     read_block(i,block);
-                    printf("%lld %lld\n",block[0],block[1]);fflush(outto);
+                    printf("[%lld] %lld %lld\n",i,block[0],block[1]);fflush(outto);
                 }
             }
         }
@@ -243,12 +301,11 @@ struct cache{
         }
     }
     
-    
     cache_internal<btree_preference> * m = 0;
 };
 
 
-
+#include <stdlib.h>
 int tmain_kautil_cache_file_cache_static() {
     
     
@@ -268,19 +325,22 @@ int tmain_kautil_cache_file_cache_static() {
     {
         struct stat st;
         if(stat(f,&st)){
-            fd = open(f,O_CREAT|O_EXCL|O_RDWR,0755);
+            fd = open(f,O_CREAT|O_BINARY|O_EXCL|O_RDWR,0755);
         }else{
-            fd = open(f,O_RDWR);
+            fd = open(f,O_RDWR|O_BINARY);
         }
     }
     
+    
+    using file_struct_type = file_capi; 
+    
     auto cnt = 0;
     for(auto i = 0; i < 100 ; ++i){
-        auto beg = file_syscall_16b_pref::value_type(cnt*10);
+        auto beg = file_struct_type::value_type(cnt*10);
         auto end = beg+10;
         
         auto cur = tell(fd);
-        auto block_size = sizeof(file_syscall_16b_pref::value_type);
+        auto block_size = sizeof(file_struct_type::value_type);
         write(fd,&beg,block_size);
         lseek(fd,cur+block_size,SEEK_SET);
         write(fd,&end,block_size);
@@ -288,105 +348,22 @@ int tmain_kautil_cache_file_cache_static() {
         cnt+=2;
     }
     lseek(fd,0,SEEK_SET);
-
     
-    
-
     {
         // 140 150 155 158 160 170
-//        file_syscall_16b_pref::value_type input[2] = {155,159}; // case : no extend  
+        //file_syscall_16b_pref::value_type input[2] = {155,159}; // case : no extend  
         //file_syscall_16b_pref::value_type input[2] = {155,158}; // case : extend  
-        file_syscall_16b_pref::value_type input[2] = {135,175}; // case : shrink  
-        auto pref = file_syscall_16b_pref{.fd=fd};
+        file_struct_type::value_type input[2] = {0,900}; // case : shrink  
+        auto pref = file_struct_type{.f=fdopen(fd,"r+b")};
+        //        auto pref = file_struct_type{.fd=fd};
         auto a = cache{&pref};
-        
-        
-        a.debug_out_file(stdout,60,240);
         auto fw = a.merge(input);
-        a.debug_out_file(stdout,60,240);
-        
+        a.debug_out_file(stdout,fd,0,2000);
         
         return 0;
     }
     
-    
-    
-    
-    file_syscall_16b_pref::value_type input[2] = {150,155};
-    auto pref = file_syscall_16b_pref{.fd=fd};
-    auto a = cache{&pref};
-    auto fw = a.merge(input);
-    exit(0);
-    
-    auto lmb_have_oevrlap = [](auto f, auto b){ return f[1] > b[0]; };
-
-    
-    if(!(pref.size()==fw.position) /*+ !fw.direction>0*/) {
-        //case : want exists(includes partially overlapped block) 
-        printf("position(%ld) direction(%d)\n",fw.position,fw.direction); fflush(stdout);
-        
-        auto bytes = pref.size();
-        auto block_bytes = pref.block_size();
-        auto value = decltype(pref)::value_type{};
-        decltype(pref)::value_type block[2]={0,0};
-    
-        auto beg = fw.position+block_bytes;
-        auto begv = decltype(pref)::value_type(0);{// dose want value have overlap with first block?
-            decltype(pref)::value_type found_block[2]={0,0};
-            auto ptr_found_block = &found_block;
-            pref.read(fw.position,(void**) &ptr_found_block,sizeof(found_block));
-            auto has_overlap = lmb_have_oevrlap(found_block,input);
-            begv = has_overlap*found_block[0] + !has_overlap*input[0]; 
-        }
-        auto end = beg;
-        auto endv= decltype(pref)::value_type(0);
-        for(; end < bytes; end+=block_bytes){
-            auto vptr = &value;
-            auto arr = &block; // == block itself  == void * , i want &&block. &block is insufficient
-            pref.read(end,(void**) &arr,sizeof(block));
-            //printf("i(%lld / %lld) %lld / %lld \n",found_block[0],found_block[1],block[0],block[1]); fflush(stdout);
-            printf("input[1] <= block[0] (%lld <= %lld)\n",input[1],block[0]);
-            if(!lmb_have_oevrlap(input,block)){
-                endv = block[1];
-                break;
-            }
-        }
-        printf("pos(%ld %ld), value(%lld,%lld) \n",beg,end,begv,endv);
-    } else{
-        int jjj = 0;
-    }
-    
-    
     return(0);
-    
-//    if(fw.exact + bw.exact){ // there is overlap
-//        printf("there is overlap");
-//        auto from = fw.position+fw.direction*sizeof(decltype(a)::value_type)*2;
-//        
-//        file_syscall_16b_pref::value_type r[2];
-//        a.read_block(from,r);
-//        printf("----%lld %lld\n",r[0],r[1]); fflush(stdout);
-//        
-//        
-//        bool is_partial = false;
-//        if(is_partial){
-//            
-//            
-//            // merge
-//        }else{
-//            // nothing
-//        }
-//         //printf("found. pos %ld direction %d\n",a.pos(),a.direction());
-//    }else{// there is not overlap
-//        // add
-//        printf("there is not overlap");
-//        auto from = fw.position+fw.direction*sizeof(decltype(a)::value_type)*2;
-////        a.add(from,&input[0],&input[1]);
-//        a.add_block(from,input);
-//        a.debug_out_block(stderr,from);
-//    }
-    
-    return 0;
 }
 
 
