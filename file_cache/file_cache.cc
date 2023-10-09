@@ -41,15 +41,13 @@ struct file_syscall_16b_pref{
     
     bool write(offset_type const& offset, void ** data, offset_type size){
         lseek(fd,offset,SEEK_SET);
-        // todo : size check
-        return sizeof(value_type)==::write(fd,*data,size);
+        return size==::write(fd,*data,size);
     }
     
     // api may make a confusion but correct. this is because to avoid copy of value(object such as bigint) for future.
     bool read(offset_type const& offset, void ** data, offset_type size){
         lseek(fd,offset,SEEK_SET);
-        // todo : size check
-        return sizeof(value_type)==::read(fd,*data,size);
+        return size==::read(fd,*data,size);
     }
     
     
@@ -65,10 +63,13 @@ struct file_syscall_16b_pref{
         ::write(fd,buffer,read_size);
         return 0;
     }
+    
+    int flush_buffer(){ return 0; }
+    
 };
 
 
-struct file_capi {
+struct file_capi{
     using value_type = uint64_t;
     using offset_type = long;
     
@@ -115,16 +116,12 @@ struct file_capi {
         }
         fseek(f,src,SEEK_SET);
         auto read_size = ::fread(buffer,1,size,f);
-        fflush(f);
         fseek(f,dst,SEEK_SET);
         auto write_size = fwrite(buffer,1,read_size,f);
-        fflush(f);
         return 0;
     }
     
-
-    
-    
+    int flush_buffer(){ return fflush(f); }
     
 };
 
@@ -171,51 +168,64 @@ struct cache{
     
     
     
-    find_result merge(value_type input[2]){ 
+    bool exists(value_type input[2]){
+        auto btres =kautil::algorithm::btree_search{m->prfx}.search(static_cast<value_type>(input[0]),false);
+        if(btres.direction) return false;
+        auto nearest_right = value_type(0);
+        auto nearest_right_ptr = &nearest_right;
+        m->prfx->read_value(btres.nearest_pos+sizeof(value_type),&nearest_right_ptr);
+        return 2== (((input[0] == btres.nearest_value) +(input[1] == *nearest_right_ptr)));
+    }
+    
+    
+    int merge(value_type input[2]){ 
         value_type diff = 1;
         
-        auto res =find_result{};
-        auto btres =kautil::algorithm::btree_search{m->prfx}.search(static_cast<value_type>(input[0])/*, &res.position, &res.direction*/); 
+        auto btres =kautil::algorithm::btree_search{m->prfx}.search(static_cast<value_type>(input[0]));
+        {// return immediately
+            auto nearest_right = value_type(0);
+            auto nearest_right_ptr = &nearest_right;
+            m->prfx->read_value(btres.nearest_pos+sizeof(value_type),&nearest_right_ptr);
+            if(2==((input[0] == btres.nearest_value) +(input[1] == *nearest_right_ptr))) return 0;
+        }
+        
         auto block_size=m->prfx->block_size();
-        auto max_size=m->prfx->size();
-        auto start_block =btres.pos; 
+        auto start_block =btres.nearest_pos; 
         value_type cmp[2];
         value_type new_block[2]={input[0],input[1]};
-        
-        
-        auto gap_cnt=-1;
-        auto end_block = start_block; 
-        for(auto i = start_block; i < max_size; i+=block_size ){
-            read_block(i,cmp);
-            auto cond = bool((input[1] >= cmp[0])+((cmp[0]-input[1]) <= diff));
-            if(/*(start_block<i) && */!cond) break;
-            new_block[1] =cmp[1];
-            ++gap_cnt;
+        auto gap_cnt=-1;{
+            auto max_size=m->prfx->size();
+            for(auto i = start_block; i < max_size; i+=block_size ){
+                read_block(i,cmp);
+                if(!( (input[1] >= cmp[0])
+                    + ((cmp[0]-input[1]) <= diff))
+                ) break;
+                
+                new_block[1] =cmp[1];
+                ++gap_cnt;
+            }
         }
         
         auto write_buffer_size=512;
-        auto left_pos = 
-                     (btres.neighbor_pos < btres.pos)*btres.neighbor_pos 
-                   +!(btres.neighbor_pos < btres.pos)*btres.pos;
         auto rpos = 
-                     !(btres.neighbor_pos < btres.pos)*btres.neighbor_pos 
-                     +(btres.neighbor_pos < btres.pos)*btres.pos;
-        if(gap_cnt > 0) { // possible to shrink region
+             !(btres.neighbor_pos < btres.nearest_pos)*btres.neighbor_pos 
+             +(btres.neighbor_pos < btres.nearest_pos)*btres.nearest_pos;
+        if(gap_cnt > 0) { /* possible to shrink region*/
             auto end_block = start_block + (block_size * (gap_cnt+1) );
             auto shrink_size = block_size*gap_cnt;
             write_block(start_block,new_block);
             //printf("%ld %ld %d\n",end_block,shrink_size,write_buffer_size); fflush(stdout); 
             kautil::region{m->prfx}.shrink(end_block,shrink_size,write_buffer_size);
-        }else if(gap_cnt < 0){ // block is unique. must extend region for that block. 
+        }else if(gap_cnt < 0){ /* block is unique. must extend region for that block. */
             kautil::region{m->prfx}.claim(rpos,block_size,write_buffer_size);
             write_block(rpos,input);
-        }else{ // block is contained by (or has overlap with) the first one. possible to merge them. 
+        }else{ /* block is contained by (or has overlap with) the first one. possible to merge them. */
             //printf("write (%ld,b(%lld),e(%lld))\n",start_block,new_block[0],new_block[1]); fflush(stdout);
             write_block(start_block,new_block);
         }
         
-        fflush(m->prfx->f);
-        return res;
+        m->prfx->flush_buffer();
+        return 0;
     }
     
     find_result find(uint64_t from,uint64_t to){ 
@@ -269,7 +279,6 @@ struct cache{
                 }
             }
         }
-        
     }
     
     void debug_out_block(FILE* outto,offset_type from){
@@ -305,7 +314,6 @@ struct cache{
 };
 
 
-#include <stdlib.h>
 int tmain_kautil_cache_file_cache_static() {
     
     
@@ -332,7 +340,8 @@ int tmain_kautil_cache_file_cache_static() {
     }
     
     
-    using file_struct_type = file_capi; 
+    //using file_struct_type = file_capi; 
+    using file_struct_type = file_syscall_16b_pref; 
     
     auto cnt = 0;
     for(auto i = 0; i < 100 ; ++i){
@@ -350,15 +359,34 @@ int tmain_kautil_cache_file_cache_static() {
     lseek(fd,0,SEEK_SET);
     
     {
-        // 140 150 155 158 160 170
         //file_syscall_16b_pref::value_type input[2] = {155,159}; // case : no extend  
         //file_syscall_16b_pref::value_type input[2] = {155,158}; // case : extend  
+//        file_struct_type::value_type input[2] = {920,930}; // case : shrink  
         file_struct_type::value_type input[2] = {0,900}; // case : shrink  
-        auto pref = file_struct_type{.f=fdopen(fd,"r+b")};
-        //        auto pref = file_struct_type{.fd=fd};
+        //auto pref = file_struct_type{.f=fdopen(fd,"r+b")};
+        auto pref = file_struct_type{.fd=fd};
         auto a = cache{&pref};
         auto fw = a.merge(input);
-        a.debug_out_file(stdout,fd,0,2000);
+        
+        file_struct_type::value_type ij [2]={0,10}; // case : shrink  
+        auto res = a.exists(ij);
+        printf("%d\n",a.exists(ij));
+        
+        for(int i = 0; i < 1000; i+=10){
+            for(int j = 0; j < 1000; j+=10){
+                ij[0] = i;
+                ij[1] = j;
+                auto res = a.exists(ij);
+                if(res){
+                    printf("%d [%lld,%lld]\n",a.exists(ij),ij[0],ij[1]);fflush(stdout);
+                }
+            }
+        }
+        
+        //a.debug_out_file(stdout,fd,0,2000);
+        
+        
+        
         
         return 0;
     }
