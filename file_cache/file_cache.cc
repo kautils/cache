@@ -325,7 +325,7 @@ struct cache{
     
     bool inside_range(value_type cmp, value_type pole0, value_type pole1){ return (2==((pole0 <= cmp) + (cmp <= pole1))) +(2==((pole0 <= cmp) + (cmp <= pole1))); }
     
-    struct gap_context{ value_type *begin;value_type *end=0; value_type * gap = 0;uint64_t gap_len = 0; value_type * entity=0; };
+    struct gap_context{ value_type *begin;value_type *end=0; value_type * entity=0; };
     void gap_context_free(gap_context * ctx){ delete ctx->entity; delete ctx; }
     
     gap_context* gap(value_type input[2]){ 
@@ -391,103 +391,10 @@ struct cache{
                         (entity[entity_len-2]>input[1])*uintptr_t(&entity[entity_len-2]) 
                       +!(entity[entity_len-2]>input[1])*uintptr_t(&entity[entity_len-1]));
         
-        
         if(v0_is_contained)++beg;
-        //if(v1_is_contained)--end;
-        // addr of beg / end
-        
-        printf("++++++++++++++++++++++++++++\n");
-        auto cur = beg;
-        for(;cur != end;++cur){
-            printf("%lld \n",*cur);
-        }
-        printf("++++++++++++++++++++++++++++\n");
-        
         return new gap_context{.begin=beg,.end=end,.entity=entity};
         
     }
-//    gap_context* gap(value_type input[2]){ 
-//        
-//        //file_syscall_8b_pref pref{.fd=m->prfx->fd};
-//        
-//        typename kautil::algorithm::btree_search<btree_preference>::btree_search_result a;
-//        auto info0 = kautil::algorithm::btree_search{m->prfx}.search(input[0]);
-//        auto info1 = kautil::algorithm::btree_search{m->prfx}.search(input[1]);
-//        
-//        auto overflow_upper=false;
-//        auto overflow_lower=false;
-//        
-//        auto v0 =true_nearest(input[0],info0.nearest_value,info0.nearest_pos);
-//        auto v0_is_contained = inside_range(input[0],info0.nearest_value,info0.neighbor_value);
-//        
-//        auto v1 =true_nearest(input[1],info1.nearest_value,info1.nearest_pos);
-//        auto v1_is_contained = inside_range(input[1],info1.nearest_value,info1.neighbor_value);
-//        
-//        auto adjust_size = !v0_is_contained+!v1_is_contained;
-//        auto ptr = (value_type*)0;
-//        auto ptr_bytes = (v1.pos-v0.pos);
-//        if(auto ptr_len = ptr_bytes/sizeof(value_type)+adjust_size){
-////        auto ptr_bytes = (v1.pos-v0.pos)+m->prfx->block_size();
-////        if(auto ptr_len = ptr_bytes/sizeof(value_type)){
-//            
-//            if(ptr_len==1){
-//                ptr_len = 2; // belongs to same block and v0 or v1 is not contained  
-//            }
-//            
-//            ptr = new value_type[ptr_len];
-//            {// case dose not contained
-//                ptr[0]=input[0];
-//                ptr[ptr_len-1]=(info1.nearest_value > input[1])*input[1] + !(info1.nearest_value > input[1])*info1.nearest_value;
-//            }
-//            auto arr= ptr+!(v0_is_contained);
-//            m->prfx->read(v0.pos,(void**)&arr,ptr_bytes);
-//            
-//            
-//            for(auto i = 0 ; i < ptr_len; i+=2)printf("[%d] %lld %lld\n",i,ptr[i],ptr[i+1]);
-//            
-//            arr =(value_type*)(
-//                      (v0_is_contained*uintptr_t(arr+1))
-//                    + (!v0_is_contained*uintptr_t(ptr)));
-//            
-//            printf("%llx %llx %llx\n",uintptr_t(ptr),uintptr_t(arr),!v0_is_contained*uintptr_t(ptr));
-//            fflush(stdout);
-//            auto arr_len= 
-//                      v0_is_contained*(ptr_len-!v1_is_contained)
-//                    +!v0_is_contained*(ptr_len);
-//            
-//            
-//            
-//            printf("+++++++++++++++++++++++++++++++\n");
-//            for(auto i = 0 ; i < ptr_len; i+=2)printf("%lld %lld\n",ptr[i],ptr[i+1]);
-//            printf("+++++++++++++++++++++++++++++++\n");
-//            for(auto i = 0 ; i < arr_len; i+=2){
-//                printf("%lld %lld\n", arr[i], arr[i + 1]);
-//                fflush(stdout);
-//            }
-//            delete ptr;
-//        }else{
-//            //printf("v1 is contained %d\n",v1_is_contained);
-//            printf("there is no gap.\n");
-//        }
-//
-//        {
-//            printf("debug info\n");
-//            printf("i0 is contained %d (%lld : %lld ~ %lld)\n",v0_is_contained,input[0],info0.nearest_value,v0.value);
-//            printf("i1 is contained %d (%lld : %lld ~ %lld)\n",v1_is_contained,input[1],info1.nearest_value,v1.value);
-//            
-//            printf("v0 : (t-v,t-p),(%lld : %lld,%ld)\n",input[0],v0.value,v0.pos);
-//            printf("v1 : (t-v,t-p),(%lld : %lld,%ld)\n",input[1],v1.value,v1.pos);
-//        }
-//        
-//        
-//        //auto test_v1 =true_nearest(input[1],info1.nearest_value,info1.nearest_pos);
-//        //auto test = inside_range(input[1],info1.nearest_value,info1.neighbor_value);
-////        printf("%lld %lld\n",v0,p0);
-////        printf("%lld %lld\n",v1,p1);
-//        
-//        
-//        exit(0);
-//    }
     
     
     offset_type buffer = 4096;
@@ -651,11 +558,12 @@ int tmain_kautil_cache_file_cache_static() {
             
 //            file_16_struct_type::value_type input[2] ={925,955}; 
 //            file_16_struct_type::value_type input[2] ={935,955}; 
-            file_16_struct_type::value_type input[2] ={945,955}; 
+            file_16_struct_type::value_type input[2] ={945,965}; 
 //            
             if(auto ctx = a.gap(input)){
-                for(auto i = 0; i < ctx->gap_len; i+=2){
-                    printf("%lld %lld\n",ctx->gap[i],ctx->gap[i+1]);
+                auto cur = ctx->begin;
+                for(;cur != ctx->end;++cur){
+                  printf("%lld\n",*cur);
                 }
                 a.gap_context_free(ctx);
             }else{
