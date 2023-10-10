@@ -323,21 +323,57 @@ struct cache{
     }
     
     bool inside_range(value_type cmp, value_type pole0, value_type pole1){ return (2==((pole0 <= cmp) + (cmp <= pole1))) +(2==((pole1 <= cmp) + (cmp <= pole0))); }
-    
     struct gap_context{ value_type *begin;value_type *end=0; value_type * entity=0; };
     void gap_context_free(gap_context * ctx){ if(ctx)delete ctx->entity; delete ctx; }
+    
+    
+    struct neighbor_relation_result{
+        value_type right_value;
+        offset_type right_pos;
+        
+        bool is_contained = false;
+    };
+    
+    
+    neighbor_relation_result neighbor_relation(
+            value_type i
+            ,bool d
+            ,value_type neighbor_v
+            ,offset_type neighbor_pos 
+            ){
+
+        auto next_value = value_type(0);
+        auto next_pos = neighbor_pos+static_cast<offset_type>(sizeof(value_type)*1);
+        auto ptr = &next_value;
+        m->prfx->read(
+            next_pos
+            ,(void**)&ptr
+            ,sizeof(value_type));
+
+        return neighbor_relation_result{
+            .right_value=next_value    
+            ,.right_pos=next_pos 
+            ,.is_contained=bool((2==((neighbor_v<=i) + (i<=next_value))) + (2==((next_value<=i) + (i<=neighbor_v))))
+        };
+    }
     
     gap_context* gap(value_type input[2]){ 
         
         typename kautil::algorithm::btree_search<btree_preference>::btree_search_result a;
         auto info0 = kautil::algorithm::btree_search{m->prfx}.search(input[0]);
         auto info1 = kautil::algorithm::btree_search{m->prfx}.search(input[1]);
+
         
         auto overflow_upper=false;
         auto overflow_lower=false;
         
         auto v0 =true_nearest(input[0],info0.direction,info0.nearest_value,info0.nearest_pos);
         auto v1 =true_nearest(input[1],info1.direction,info1.nearest_value,info1.nearest_pos);
+        
+        
+        auto ninf0 = neighbor_relation(input[0],info0.direction,info0.neighbor_value,info0.neighbor_pos);
+        auto ninf1 = neighbor_relation(input[1],info1.direction,info1.neighbor_value,info1.neighbor_pos);
+        
         
         if(0==( !v0.is_contained + !v1.is_contained + !(v0.pos==v1.pos) )){
             return 0;
@@ -359,28 +395,38 @@ struct cache{
             printf("v1 : (t-v,t-p),(%lld : %lld,%ld)\n",input[1],v1.value,v1.pos);
         }
 
-        // todo overflow : low_pos+sizeof(value_type) >= size()? 
+
+        // adjust inputs if it is contained by the neighbor range.
+            // input[0] => with right_value
+            // input[1] => with left_value
+        auto input0 = ninf0.is_contained*ninf0.right_value+!ninf0.is_contained*input[0];  
+        auto input1 = ninf1.is_contained*info1.neighbor_value+!ninf1.is_contained*input[1]; 
         auto block_size = m->prfx->block_size();
+        
+        // todo overflow : low_pos+sizeof(value_type) >= size()? 
         auto entity_len  = (high_pos - low_pos + sizeof(value_type))/sizeof(value_type)+2;
         auto entity = new value_type[entity_len+info0.overflow+info1.overflow]; 
-
         auto arr_len = entity_len-2;
         auto arr = entity+1;
         m->prfx->read(low_pos,(void**)&arr,arr_len*sizeof(value_type));
         
+        auto & entity_input = entity[0];
+        auto & entity_array_start = entity[1];
+        auto & entity_input1 = entity[entity_len-1];
+        auto & entity_array_end = entity[entity_len-2];
+        
         
         auto res = new gap_context{.entity=entity};
-        entity[0] = (entity[1]>input[0])*input[0] + !(entity[1]>input[0])*entity[1];
-        entity[1] = !(entity[1]>input[0])*input[0] + (entity[1]>input[0])*entity[1];
+        entity_input = (entity_array_start>input0)*input0 + !(entity_array_start>input0)*entity_array_start;
+        entity_array_start = !(entity_array_start>input0)*input0 + (entity_array_start>input0)*entity_array_start;
         
+        entity_input1 = (entity_array_end>input1)*entity_array_end+!(entity_array_end>input1)*input1;
+        entity_array_end = !(entity_array_end>input1)*entity_array_end+(entity_array_end>input1)*input1;
         
-        entity[entity_len-1] = (entity[entity_len-2]>input[1])*entity[entity_len-2]+!(entity[entity_len-2]>input[1])*input[1];
-        entity[entity_len-2] = !(entity[entity_len-2]>input[1])*entity[entity_len-2]+(entity[entity_len-2]>input[1])*input[1];
-        
-        res->begin =(value_type*) ( (entity[1]>input[0])*uintptr_t(&entity[0]) + !(entity[1]>input[0])*uintptr_t(&entity[1]) );
+        res->begin =(value_type*) ( (entity_array_start>input0)*uintptr_t(&entity_input) + !(entity_array_start>input0)*uintptr_t(&entity_array_start) );
         res->end =(value_type*) (
-                        (entity[entity_len-2]>input[1])*uintptr_t(&entity[entity_len-2]) 
-                      +!(entity[entity_len-2]>input[1])*uintptr_t(&entity[entity_len-1]));
+                        (entity_array_end>input1)*uintptr_t(&entity_array_end) 
+                      +!(entity_array_end>input1)*uintptr_t(&entity_input1));
 
         {
             if(info1.overflow){
@@ -388,7 +434,7 @@ struct cache{
                        ((v0.value == *(res->end-1) )*uintptr_t(res->end-1)
                       +!(v0.value == *(res->end-1) )*uintptr_t(res->end));
                 *(res->end++)=v0.value;
-                *(res->end++)=input[1];
+                *(res->end++)=input1;
 //                for(auto i = 0;i < entity_len+2;++i){
 //                    printf("---%lld\n",entity[i]);
 //                    fflush(stdout);
@@ -540,7 +586,7 @@ int tmain_kautil_cache_file_cache_static() {
         
 
         {// gap
-//            file_16_struct_type::value_type input[2] ={890,925}; 
+            file_16_struct_type::value_type input[2] ={890,925}; 
 //            file_16_struct_type::value_type input[2] ={911,935}; 
 //            file_16_struct_type::value_type input[2] ={920,950}; 
 //            file_16_struct_type::value_type input[2] ={920,951};
@@ -565,7 +611,7 @@ int tmain_kautil_cache_file_cache_static() {
 //            file_16_struct_type::value_type input[2] ={925,955}; 
 //            file_16_struct_type::value_type input[2] ={935,955}; 
 //            file_16_struct_type::value_type input[2] ={1980,2000}; 
-            file_16_struct_type::value_type input[2] ={1990,1991};
+//            file_16_struct_type::value_type input[2] ={1990,1991};
 
            // 1990 - 2000 
 
