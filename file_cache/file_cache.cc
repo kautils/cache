@@ -16,6 +16,28 @@
 int mkdir_recurst(char * p);
 
 
+
+
+
+struct file_syscall_8b_pref{
+    using value_type = uint64_t;
+    using offset_type = long;
+
+    int fd=-1;
+    offset_type block_size(){ return sizeof(value_type); }
+    offset_type size(){
+        struct stat st;
+        fstat(fd,&st);
+        return static_cast<uint64_t>(st.st_size);
+    }
+
+    void read_value(offset_type const& offset, value_type ** value){
+        lseek(fd,offset,SEEK_SET);
+        read(fd,*value,sizeof(value_type));
+    }
+};
+
+
 struct file_syscall_16b_pref{
     using value_type = uint64_t;
     using offset_type = long;
@@ -65,6 +87,9 @@ struct file_syscall_16b_pref{
     }
     
     int flush_buffer(){ return 0; }
+    
+    //int fileno(){ return fd; }
+    
     
 };
 
@@ -122,6 +147,7 @@ struct file_capi{
     }
     
     int flush_buffer(){ return fflush(f); }
+    //int fileno(){ return ::fileno(f); }
     
 };
 
@@ -225,20 +251,6 @@ struct cache{
         return 0;
     }
     
-    
-//    struct find_block_result{offset_type pos=0; bool found=false;};
-//    ///@note find the block to which [v] belongs
-//    find_block_result find_block(value_type v){
-//        auto info = kautil::algorithm::btree_search{m->prfx}.search(v);
-//        auto cmp = value_type(0);
-//        read(info.nearest_pos-8,&cmp,sizeof(value_type));
-//        
-//        auto res=find_block_result{};
-//        res.found = !info.is_overflow;
-//    }
-    
-
-
 
     value_type adjust_nearest_pos(value_type nearest_pos,value_type input){
         if(!nearest_pos)return nearest_pos;
@@ -247,75 +259,146 @@ struct cache{
         m->prfx->read(nearest_pos-sizeof(value_type),(void**)&info_bw_ptr,sizeof(value_type));
         return nearest_pos+ (info_bw >= input)*-m->prfx->block_size();
     }
+    
+    value_type left_value(int direction,value_type nearest_pos,value_type input){
+        if(!nearest_pos)return nearest_pos;
+        if(direction >0) return nearest_pos;
+        auto info_bw = value_type(0);
+        auto info_bw_ptr = &info_bw;
+        return nearest_pos-m->prfx->block_size();
+    }
 
-
+    
+    
+    struct true_nearest_result{
+        value_type value=0;
+        offset_type pos=0;
+    };
+//    true_nearest_result true_nearest(value_type input_value,kautil::algorithm::btree_search_result<btree_preference> & ){
+    true_nearest_result true_nearest(value_type input_value,value_type nearest_value,offset_type nearest_pos){
+        auto overflow_upper=false;
+        auto overflow_lower=false;
+        
+        auto v =value_type(0);
+        auto vpos =nearest_pos;
+        auto vp = &v;
+        if(vpos>sizeof(value_type)){
+            m->prfx->read(vpos-sizeof(value_type),(void**)&vp,sizeof(value_type));
+        }else{
+            v = 0;
+            vpos= 0;
+            overflow_lower=true;
+        }
+        
+        auto v1 =value_type(0);
+        auto vpos1 = nearest_pos;
+        auto vp1 = &v1;
+        if(vpos1+sizeof(value_type) < m->prfx->size()){
+            m->prfx->read(vpos1+sizeof(value_type),(void**)&vp1,sizeof(value_type));
+        }else{
+            v1 = 0;
+            vpos1=m->prfx->size();
+            overflow_upper=true;
+        }
+        
+        auto diff_l = 
+                  (v > input_value)*((v - input_value)) 
+                +!(v > input_value)*((input_value-v)); 
+        
+        auto diff_r = 
+                  (v1 > input_value)*((v1 - input_value)) 
+                +!(v1 > input_value)*((input_value-v1)); 
+        
+        auto start_v1 = 
+                  (diff_l < diff_r)*v
+                +!(diff_l < diff_r)*v1; 
+        
+        auto start_pos = 
+                  (diff_l < diff_r)*vpos
+                +!(diff_l < diff_r)*vpos1; 
+        
+        
+        
+        
+        return {.value=start_v1,.pos=start_pos};
+    }
+    
+    bool inside_range(value_type cmp, value_type pole0, value_type pole1){ return (2==((pole0 <= cmp) + (cmp <= pole1))) +(2==((pole0 <= cmp) + (cmp <= pole1))); }
+    
     struct gap_context{ value_type * gap = 0;uint64_t gap_len = 0; value_type * entity=0; };
     void gap_context_free(gap_context * ctx){ delete ctx->entity; delete ctx; }
+    
     gap_context* gap(value_type input[2]){ 
         
+        //file_syscall_8b_pref pref{.fd=m->prfx->fd};
         
-        // find block
+        typename kautil::algorithm::btree_search<btree_preference>::btree_search_result a;
         auto info0 = kautil::algorithm::btree_search{m->prfx}.search(input[0]);
         auto info1 = kautil::algorithm::btree_search{m->prfx}.search(input[1]);
         
-        printf("%lld\n",info0.neighbor_value);
-        printf("%lld\n",info1.neighbor_value);
-        //info1.neighbor_value;
+        auto overflow_upper=false;
+        auto overflow_lower=false;
         
+        auto v0 =true_nearest(input[0],info0.nearest_value,info0.nearest_pos);
+        auto v0_is_contained = inside_range(input[0],info0.nearest_value,info0.neighbor_value);
         
+        auto v1 =true_nearest(input[1],info1.nearest_value,info1.nearest_pos);
+        auto v1_is_contained = inside_range(input[1],info1.nearest_value,info1.neighbor_value);
         
-        /* initialize beg/end. there is 4 case. 
-         overflow & overflow
-         overflow & found
-         found & overflow
-         found % found */
-        auto ovf = info0.overflow + info1.overflow;
-        auto beg = info0.overflow ? 0:adjust_nearest_pos(info0.nearest_pos,input[0]);
-        auto end = info1.overflow ? m->prfx->size(): adjust_nearest_pos(info1.nearest_pos,input[1]);
-        printf("[initialize beg/end] (%lld %lld)\n",beg,end); fflush(stdout);
-        
-        
-        // read into memory
-        auto gap = (value_type*)0;
-        auto gap_len = (end-beg)/sizeof(value_type);
-        
-        // block size 
-        if(gap_len < 2) return nullptr;
-        auto gap_org = gap = new value_type[gap_len+2];
-        if(gap_len > 2){
-            gap_len+=2;
-            // 1 element right shift
-            auto arr_ptr = gap+1;
-            m->prfx->read(beg,(void**)&arr_ptr,end-beg);
-            gap[0] = input[0];
-            gap[gap_len-1] = input[1];
-            
-            // remove same value. in case of being added the same value to the poles.
-            gap_len -= (gap[gap_len-1]==gap[gap_len-2])*(2);
-            gap_len -= (gap[0]==gap[1])*(2);
-            gap += (gap[0]==gap[1])*(2);
-            
-        } else if(gap_len == 2){
-            m->prfx->read(beg,(void**)&gap,end-beg);
-            
-            gap_len = 0;
-            if(input[1] > gap[1]){
-              gap[3] = 
-                        (1 ==info1.direction)*(info1.nearest_value-1)
-                      +!(1 ==info1.direction)*(input[1]-1);
-              gap[2] = gap[1]+1;
-              gap_len+=2;
+        auto adjust_size = !v0_is_contained+!v1_is_contained;
+        auto ptr = (value_type*)0;
+        auto ptr_bytes = v1.pos-v0.pos;
+        if(auto ptr_len = ptr_bytes/sizeof(value_type)+adjust_size){
+            if(ptr_len==1) ptr_len = 2;
+            ptr = new value_type[ptr_len];
+            {// case dose not contained
+                ptr[0]=input[0];
+                ptr[ptr_len-1]=(info1.nearest_value > input[1])*input[1] + !(info1.nearest_value > input[1])*info1.nearest_value;
             }
+            auto arr= ptr+!(v0_is_contained);
+            m->prfx->read(v0.pos,(void**)&arr,ptr_bytes);
             
-            if(input[0] < gap[0]){
-              gap[1] =gap[0]-1;
-              gap[0] = input[0]+!info0.direction;
-              gap_len+=2;
-            }else gap = &gap[2]; 
+            for(auto i = 0 ; i < ptr_len; i+=2)printf("[%d] %lld %lld\n",i,ptr[i],ptr[i+1]);
+            
+            arr =(value_type*)(
+                      (v0_is_contained*uintptr_t(arr+1))
+                    + (!v0_is_contained*uintptr_t(ptr)));
+            
+            printf("%llx %llx %llx\n",uintptr_t(ptr),uintptr_t(arr),!v0_is_contained*uintptr_t(ptr));
+            fflush(stdout);
+            auto arr_len= 
+                      v0_is_contained*(ptr_len-!v1_is_contained)
+                    +!v0_is_contained*(ptr_len);
+            
+            
+            printf("+++++++++++++++++++++++++++++++\n");
+            for(auto i = 0 ; i < ptr_len; i+=2)printf("%lld %lld\n",ptr[i],ptr[i+1]);
+            printf("+++++++++++++++++++++++++++++++\n");
+            for(auto i = 0 ; i < arr_len; i+=2){
+                printf("%lld %lld\n", arr[i], arr[i + 1]);
+                fflush(stdout);
+            }
+            delete ptr;
+        }else{
+            //printf("v1 is contained %d\n",v1_is_contained);
+            printf("there is no gap.\n");
+        }
+
+        {
+            printf("debug info\n");
+            printf("i0 is contained %d (%lld : %lld ~ %lld)\n",v0_is_contained,input[0],info0.nearest_value,v0.value);
+            printf("i1 is contained %d (%lld : %lld ~ %lld)\n",v1_is_contained,input[1],info1.nearest_value,v1.value);
+            
+            printf("v0 : (t-v,t-p),(%lld : %lld,%ld)\n",input[0],v0.value,v0.pos);
+            printf("v1 : (t-v,t-p),(%lld : %lld,%ld)\n",input[1],v1.value,v1.pos);
         }
         
-        for(auto i = 0; i < gap_len; i+=2)printf("%lld %lld\n",gap[i],gap[i+1]);
-        return new gap_context{.gap = gap,.gap_len=gap_len,.entity=gap_org};
+        
+        //auto test_v1 =true_nearest(input[1],info1.nearest_value,info1.nearest_pos);
+        //auto test = inside_range(input[1],info1.nearest_value,info1.neighbor_value);
+//        printf("%lld %lld\n",v0,p0);
+//        printf("%lld %lld\n",v1,p1);
+        
         
         exit(0);
     }
@@ -425,16 +508,17 @@ int tmain_kautil_cache_file_cache_static() {
     }
     
     
-    //using file_struct_type = file_capi; 
-    using file_struct_type = file_syscall_16b_pref; 
+    //using file_16_struct_type = file_capi; 
+    using file_16_struct_type = file_syscall_16b_pref; 
+    using file_8_struc_type = file_syscall_8b_pref; 
     
     auto cnt = 0;
     for(auto i = 0; i < 100 ; ++i){
-        auto beg = file_struct_type::value_type(cnt*10);
+        auto beg = file_16_struct_type::value_type(cnt*10);
         auto end = beg+10;
         
         auto cur = tell(fd);
-        auto block_size = sizeof(file_struct_type::value_type);
+        auto block_size = sizeof(file_16_struct_type::value_type);
         write(fd,&beg,block_size);
         lseek(fd,cur+block_size,SEEK_SET);
         write(fd,&end,block_size);
@@ -446,21 +530,39 @@ int tmain_kautil_cache_file_cache_static() {
     {
         //file_syscall_16b_pref::value_type input[2] = {155,159}; // case : no extend  
         //file_syscall_16b_pref::value_type input[2] = {155,158}; // case : extend  
-//        file_struct_type::value_type input[2] = {920,930}; // case : shrink  
-        file_struct_type::value_type input[2] = {0,900}; // case : shrink  
-        //auto pref = file_struct_type{.f=fdopen(fd,"r+b")};
-        auto pref = file_struct_type{.fd=fd};
-        auto a = cache{&pref};
+//        file_16_struct_type::value_type input[2] = {920,930}; // case : shrink  
+        file_16_struct_type::value_type input[2] = {0,900}; // case : shrink  
+        //auto pref = file_16_struct_type{.f=fdopen(fd,"r+b")};
+        auto pref = file_16_struct_type{.fd=fd};
+        //auto pref8 = file_8_struc_type{.fd=fd};
+        auto a = cache{&pref/*,&pref8*/};
         auto fw = a.merge(input);
         
         
 
         {// gap
-//            file_struct_type::value_type input[2] ={890,925}; 
-//            file_struct_type::value_type input[2] ={911,935}; 
-//            file_struct_type::value_type input[2] ={911,951}; 
-//            file_struct_type::value_type input[2] ={920,950}; 
-            file_struct_type::value_type input[2] ={920,951}; 
+//            file_16_struct_type::value_type input[2] ={890,925}; 
+//            file_16_struct_type::value_type input[2] ={911,935}; 
+//            file_16_struct_type::value_type input[2] ={920,950}; 
+//            file_16_struct_type::value_type input[2] ={920,951};
+            
+            file_16_struct_type::value_type input[2] ={925,927};
+//            file_16_struct_type::value_type input[2] ={916,939}; 
+//            file_16_struct_type::value_type input[2] ={911,955}; 
+//            file_16_struct_type::value_type input[2] ={911,916};  
+//            file_16_struct_type::value_type input[2] ={931,939}; 
+//            file_16_struct_type::value_type input[2] ={925,934};
+//            file_16_struct_type::value_type input[2] ={911,925}; //*
+            
+            // 2block
+            //file_16_struct_type::value_type input[2] ={911,955}; 
+            //file_16_struct_type::value_type input[2] ={911,945}; 
+            //file_16_struct_type::value_type input[2] ={911,935}; 
+            
+//            file_16_struct_type::value_type input[2] ={925,955}; 
+//            file_16_struct_type::value_type input[2] ={935,955}; 
+//            file_16_struct_type::value_type input[2] ={945,955}; 
+//            
             if(auto ctx = a.gap(input)){
                 for(auto i = 0; i < ctx->gap_len; i+=2){
                     printf("%lld %lld\n",ctx->gap[i],ctx->gap[i+1]);
@@ -482,7 +584,7 @@ int tmain_kautil_cache_file_cache_static() {
 
 
         {
-            file_struct_type::value_type ij [2]={0,10}; // case : shrink  
+            file_16_struct_type::value_type ij [2]={0,10}; // case : shrink  
             auto res = a.exists(ij);
             printf("%d\n",a.exists(ij));
             for(int i = 0; i < 1000; i+=10){
