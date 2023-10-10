@@ -339,7 +339,9 @@ struct cache{
         auto v0 =true_nearest(input[0],info0.direction,info0.nearest_value,info0.nearest_pos);
         auto v1 =true_nearest(input[1],info1.direction,info1.nearest_value,info1.nearest_pos);
         
-        if(0==( !v0.is_contained + !v1.is_contained + !(v0.pos==v1.pos) ))return 0;
+        if(0==( !v0.is_contained + !v1.is_contained + !(v0.pos==v1.pos) )){
+            return 0;
+        }
         
         auto entity_bytes = v1.pos -v0.pos+m->prfx->block_size();
         
@@ -360,7 +362,7 @@ struct cache{
         // todo overflow : low_pos+sizeof(value_type) >= size()? 
         auto block_size = m->prfx->block_size();
         auto entity_len  = (high_pos - low_pos + sizeof(value_type))/sizeof(value_type)+2;
-        auto entity = new value_type[entity_len]; 
+        auto entity = new value_type[entity_len+info0.overflow+info1.overflow]; 
 
         auto arr_len = entity_len-2;
         auto arr = entity+1;
@@ -379,6 +381,20 @@ struct cache{
         res->end =(value_type*) (
                         (entity[entity_len-2]>input[1])*uintptr_t(&entity[entity_len-2]) 
                       +!(entity[entity_len-2]>input[1])*uintptr_t(&entity[entity_len-1]));
+
+        {
+            if(info1.overflow){
+                auto cur = (value_type*)
+                       ((v0.value == *(res->end-1) )*uintptr_t(res->end-1)
+                      +!(v0.value == *(res->end-1) )*uintptr_t(res->end));
+                *(res->end++)=v0.value;
+                *(res->end++)=input[1];
+//                for(auto i = 0;i < entity_len+2;++i){
+//                    printf("---%lld\n",entity[i]);
+//                    fflush(stdout);
+//                }
+            }
+        }
         
         
         res->begin  += v0.is_contained;
@@ -548,7 +564,8 @@ int tmain_kautil_cache_file_cache_static() {
             
 //            file_16_struct_type::value_type input[2] ={925,955}; 
 //            file_16_struct_type::value_type input[2] ={935,955}; 
-            file_16_struct_type::value_type input[2] ={1980,2000}; 
+//            file_16_struct_type::value_type input[2] ={1980,2000}; 
+            file_16_struct_type::value_type input[2] ={1990,1991};
 
            // 1990 - 2000 
 
