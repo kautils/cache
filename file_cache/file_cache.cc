@@ -325,7 +325,7 @@ struct cache{
     bool inside_range(value_type cmp, value_type pole0, value_type pole1){ return (2==((pole0 <= cmp) + (cmp <= pole1))) +(2==((pole1 <= cmp) + (cmp <= pole0))); }
     
     struct gap_context{ value_type *begin;value_type *end=0; value_type * entity=0; };
-    void gap_context_free(gap_context * ctx){ delete ctx->entity; delete ctx; }
+    void gap_context_free(gap_context * ctx){ if(ctx)delete ctx->entity; delete ctx; }
     
     gap_context* gap(value_type input[2]){ 
         
@@ -367,9 +367,7 @@ struct cache{
         m->prfx->read(low_pos,(void**)&arr,arr_len*sizeof(value_type));
         
         
-        auto beg = (value_type *)0;
-        auto end = (value_type *)0;
-        
+        auto res = new gap_context{.entity=entity};
         entity[0] = (entity[1]>input[0])*input[0] + !(entity[1]>input[0])*entity[1];
         entity[1] = !(entity[1]>input[0])*input[0] + (entity[1]>input[0])*entity[1];
         
@@ -377,14 +375,14 @@ struct cache{
         entity[entity_len-1] = (entity[entity_len-2]>input[1])*entity[entity_len-2]+!(entity[entity_len-2]>input[1])*input[1];
         entity[entity_len-2] = !(entity[entity_len-2]>input[1])*entity[entity_len-2]+(entity[entity_len-2]>input[1])*input[1];
         
-        beg =(value_type*) ( (entity[1]>input[0])*uintptr_t(&entity[0]) + !(entity[1]>input[0])*uintptr_t(&entity[1]) );
-        end =(value_type*) (
+        res->begin =(value_type*) ( (entity[1]>input[0])*uintptr_t(&entity[0]) + !(entity[1]>input[0])*uintptr_t(&entity[1]) );
+        res->end =(value_type*) (
                         (entity[entity_len-2]>input[1])*uintptr_t(&entity[entity_len-2]) 
                       +!(entity[entity_len-2]>input[1])*uintptr_t(&entity[entity_len-1]));
         
         
-        beg  += v0.is_contained; 
-        return new gap_context{.begin=beg,.end=end,.entity=entity};
+        res->begin  += v0.is_contained;
+        return res;
         
     }
     
@@ -550,8 +548,10 @@ int tmain_kautil_cache_file_cache_static() {
             
 //            file_16_struct_type::value_type input[2] ={925,955}; 
 //            file_16_struct_type::value_type input[2] ={935,955}; 
-            file_16_struct_type::value_type input[2] ={1015,1050}; 
-//            
+            file_16_struct_type::value_type input[2] ={1980,2000}; 
+
+           // 1990 - 2000 
+
             if(auto ctx = a.gap(input)){
                 auto cur = ctx->begin;
                 for(;cur != ctx->end;++cur){
