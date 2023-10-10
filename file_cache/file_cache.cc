@@ -325,7 +325,7 @@ struct cache{
     
     bool inside_range(value_type cmp, value_type pole0, value_type pole1){ return (2==((pole0 <= cmp) + (cmp <= pole1))) +(2==((pole0 <= cmp) + (cmp <= pole1))); }
     
-    struct gap_context{ value_type * gap = 0;uint64_t gap_len = 0; value_type * entity=0; };
+    struct gap_context{ value_type *begin;value_type *end=0; value_type * gap = 0;uint64_t gap_len = 0; value_type * entity=0; };
     void gap_context_free(gap_context * ctx){ delete ctx->entity; delete ctx; }
     
     gap_context* gap(value_type input[2]){ 
@@ -393,7 +393,7 @@ struct cache{
         
         
         if(v0_is_contained)++beg;
-        if(v1_is_contained)--end;
+        //if(v1_is_contained)--end;
         // addr of beg / end
         
         printf("++++++++++++++++++++++++++++\n");
@@ -403,46 +403,8 @@ struct cache{
         }
         printf("++++++++++++++++++++++++++++\n");
         
-//        
-//        for(auto i = 0 ; i < 5; ++i){
-//            printf("[%d] %lld \n",i,entity[i]);
-//        }
-//        
+        return new gap_context{.begin=beg,.end=end,.entity=entity};
         
-        
-        exit(0);
-        
-        
-        // 0 , entity_len-1
-        // 1 , entity_len-1
-        // 0 , arr_len -1
-        // 1 , arr_len -1
-        
-        entity[0]            = v0_is_contained*-1 + !v0_is_contained*input[0];
-        //entity[entity_len-1] = v1_is_contained*-1 + !v1_is_contained*input[1];
-        for(auto i = 0 ; i < entity_len; i+=2)printf("[%d] %lld %lld\n",i,entity[i],entity[i+1]);
-        
-        
-        arr += (!v0_is_contained)*-1 + v0_is_contained*1;
-        arr_len += !v0_is_contained*2+v0_is_contained*-2 + !v1_is_contained*2+v1_is_contained*-2;
-        arr_len = (arr_len/2) * 2;
-        for(auto i = 0 ; i < arr_len; i+=2)printf("[%d] %lld %lld\n",i,arr[i],arr[i+1]);
-//        exit(0);
-        
-        arr[arr_len-1] = v1_is_contained*-1 + !v1_is_contained*input[1];
-        
-//        for(auto i = 0 ; i < entity_len; i+=2)printf("[%d] %lld %lld\n",i,entity[i],entity[i+1]);
-        for(auto i = 0 ; i < arr_len; i+=2)printf("[%d] %lld %lld\n",i,arr[i],arr[i+1]);
-        
-        
-        
-        //auto test_v1 =true_nearest(input[1],info1.nearest_value,info1.nearest_pos);
-        //auto test = inside_range(input[1],info1.nearest_value,info1.neighbor_value);
-//        printf("%lld %lld\n",v0,p0);
-//        printf("%lld %lld\n",v1,p1);
-        
-        
-        exit(0);
     }
 //    gap_context* gap(value_type input[2]){ 
 //        
@@ -672,25 +634,24 @@ int tmain_kautil_cache_file_cache_static() {
             
 //            file_16_struct_type::value_type input[2] ={925,927}; 
 //            file_16_struct_type::value_type input[2] ={916,939}; 
-//            file_16_struct_type::value_type input[2] ={911,955}; 
 //            file_16_struct_type::value_type input[2] ={911,916};  
 //            file_16_struct_type::value_type input[2] ={931,939}; 
-            file_16_struct_type::value_type input[2] ={925,934}; 
+//            file_16_struct_type::value_type input[2] ={925,934}; 
 //            file_16_struct_type::value_type input[2] ={916,945}; 
 //            file_16_struct_type::value_type input[2] ={916,955}; 
-            //file_16_struct_type::value_type input[2] ={925,945}; 
-//            file_16_struct_type::value_type input[2] ={911,925}; //*
-//            file_16_struct_type::value_type input[2] ={916,925}; // *
+//            file_16_struct_type::value_type input[2] ={925,945}; 
+//            file_16_struct_type::value_type input[2] ={911,925}; 
+//            file_16_struct_type::value_type input[2] ={916,925}; 
             
             // 2block
 //            file_16_struct_type::value_type input[2] ={911,955}; 
-//            file_16_struct_type::value_type input[2] ={911,945}; // * 
+//            file_16_struct_type::value_type input[2] ={911,945};  
             
-            //file_16_struct_type::value_type input[2] ={911,935}; 
+//            file_16_struct_type::value_type input[2] ={911,935}; 
             
 //            file_16_struct_type::value_type input[2] ={925,955}; 
 //            file_16_struct_type::value_type input[2] ={935,955}; 
-//            file_16_struct_type::value_type input[2] ={945,955}; 
+            file_16_struct_type::value_type input[2] ={945,955}; 
 //            
             if(auto ctx = a.gap(input)){
                 for(auto i = 0; i < ctx->gap_len; i+=2){
