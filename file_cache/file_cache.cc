@@ -359,13 +359,9 @@ struct cache{
     
     gap_context* gap(value_type input[2]){ 
         
-        typename kautil::algorithm::btree_search<btree_preference>::btree_search_result a;
         auto info0 = kautil::algorithm::btree_search{m->prfx}.search(input[0]);
         auto info1 = kautil::algorithm::btree_search{m->prfx}.search(input[1]);
 
-        
-        auto overflow_upper=false;
-        auto overflow_lower=false;
         
         auto v0 =true_nearest(input[0],info0.direction,info0.nearest_value,info0.nearest_pos);
         auto v1 =true_nearest(input[1],info1.direction,info1.nearest_value,info1.nearest_pos);
@@ -374,13 +370,14 @@ struct cache{
         auto ninf0 = neighbor_relation(input[0],info0.direction,info0.neighbor_value,info0.neighbor_pos);
         auto ninf1 = neighbor_relation(input[1],info1.direction,info1.neighbor_value,info1.neighbor_pos);
         
+        v0.is_contained*=!info0.overflow;
+        v0.is_contained*=!info1.overflow;
+        ninf0.is_contained*=!info0.overflow;
+        ninf1.is_contained*=!info1.overflow;
         
-        if(0==( !v0.is_contained + !v1.is_contained + !(v0.pos==v1.pos) )){
-            return 0;
-        }
+        if(0==( !v0.is_contained + !v1.is_contained + !(v0.pos==v1.pos) ))return 0;
         
         auto entity_bytes = v1.pos -v0.pos+m->prfx->block_size();
-        
         auto low_pos = (info0.nearest_value<v0.value)*info0.nearest_pos + !(info0.nearest_value<v0.value)*v0.pos; 
         auto high_pos = (info1.nearest_value>v1.value)*info1.nearest_pos + !(info1.nearest_value>v1.value)*v1.pos; 
         
@@ -404,19 +401,40 @@ struct cache{
         auto block_size = m->prfx->block_size();
         
         // todo overflow : low_pos+sizeof(value_type) >= size()? 
-        auto entity_len  = (high_pos - low_pos + sizeof(value_type))/sizeof(value_type)+2;
-        auto entity = new value_type[entity_len+info0.overflow+info1.overflow]; 
-        auto arr_len = entity_len-2;
-        auto arr = entity+1;
+//        auto entity_len  = (high_pos - low_pos + sizeof(value_type))/sizeof(value_type)+2;
+//        auto entity = new value_type[entity_len+info0.overflow+info1.overflow]; 
+//        auto arr_len = entity_len-2;
+//        auto arr = entity+1;
+//        m->prfx->read(low_pos,(void**)&arr,arr_len*sizeof(value_type));
+//        
+//        auto & entity_input = entity[0];
+//        auto & entity_array_start = entity[1];
+//        auto & entity_input1 = entity[entity_len-1];
+//        auto & entity_array_end = entity[entity_len-2];
+//        
+//        auto offset = info0.overflow+info1.overflow;
+
+        
+        auto entity_len  = (high_pos - low_pos + sizeof(value_type))/sizeof(value_type)+4;
+        auto entity = new value_type[entity_len+2]; 
+        auto arr_len = entity_len-4;
+        auto arr = entity+2;
         m->prfx->read(low_pos,(void**)&arr,arr_len*sizeof(value_type));
+
         
-        auto & entity_input = entity[0];
-        auto & entity_array_start = entity[1];
-        auto & entity_input1 = entity[entity_len-1];
-        auto & entity_array_end = entity[entity_len-2];
         
+        auto & entity_overflow0 = entity[0];
+        auto & entity_overflow1 = entity[entity_len-1];
+        auto & entity_input = entity[1];
+        auto & entity_array_start = entity[2];
+        auto & entity_input1 = entity[entity_len-2];
+        auto & entity_array_end = entity[entity_len-3];
+
         
         auto res = new gap_context{.entity=entity};
+        entity_overflow0=v0.value;
+        entity_overflow1=v1.value;
+        
         entity_input = (entity_array_start>input0)*input0 + !(entity_array_start>input0)*entity_array_start;
         entity_array_start = !(entity_array_start>input0)*input0 + (entity_array_start>input0)*entity_array_start;
         
@@ -429,17 +447,27 @@ struct cache{
                       +!(entity_array_end>input1)*uintptr_t(&entity_input1));
 
         {
-            if(info1.overflow){
+            if(info0.overflow && (info0.direction < 0)){
+                auto beg_cond = 2==(info0.overflow + (info0.direction < 0));
+                res->begin=(value_type*)(beg_cond*uintptr_t(entity)+!beg_cond*uintptr_t(res->begin));
+                res->end+=1;
+            }
+
+            if(info1.overflow && (info1.direction > 0)){
                 auto cur = (value_type*)
                        ((v0.value == *(res->end-1) )*uintptr_t(res->end-1)
                       +!(v0.value == *(res->end-1) )*uintptr_t(res->end));
                 *(res->end++)=v0.value;
                 *(res->end++)=input1;
-//                for(auto i = 0;i < entity_len+2;++i){
-//                    printf("---%lld\n",entity[i]);
-//                    fflush(stdout);
-//                }
+                
             }
+            
+            
+//            for(auto i = 0;i < entity_len+2;++i){
+//                printf("---%lld\n",entity[i]);
+//                fflush(stdout);
+//            }
+
         }
         
         
@@ -557,9 +585,10 @@ int tmain_kautil_cache_file_cache_static() {
     using file_16_struct_type = file_syscall_16b_pref; 
     using file_8_struc_type = file_syscall_8b_pref; 
     
+    auto shift = 100;
     auto cnt = 0;
     for(auto i = 0; i < 100 ; ++i){
-        auto beg = file_16_struct_type::value_type(cnt*10);
+        auto beg = file_16_struct_type::value_type(cnt*10+shift);
         auto end = beg+10;
         
         auto cur = tell(fd);
@@ -576,7 +605,7 @@ int tmain_kautil_cache_file_cache_static() {
         //file_syscall_16b_pref::value_type input[2] = {155,159}; // case : no extend  
         //file_syscall_16b_pref::value_type input[2] = {155,158}; // case : extend  
 //        file_16_struct_type::value_type input[2] = {920,930}; // case : shrink  
-        file_16_struct_type::value_type input[2] = {0,900}; // case : shrink  
+        file_16_struct_type::value_type input[2] = {500,900}; // case : shrink  
         //auto pref = file_16_struct_type{.f=fdopen(fd,"r+b")};
         auto pref = file_16_struct_type{.fd=fd};
         //auto pref8 = file_8_struc_type{.fd=fd};
@@ -586,7 +615,8 @@ int tmain_kautil_cache_file_cache_static() {
         
 
         {// gap
-            file_16_struct_type::value_type input[2] ={890,925}; 
+//            file_16_struct_type::value_type input[2] ={10,90}; // * 
+//            file_16_struct_type::value_type input[2] ={890,925}; 
 //            file_16_struct_type::value_type input[2] ={911,935}; 
 //            file_16_struct_type::value_type input[2] ={920,950}; 
 //            file_16_struct_type::value_type input[2] ={920,951};
@@ -618,7 +648,7 @@ int tmain_kautil_cache_file_cache_static() {
             if(auto ctx = a.gap(input)){
                 auto cur = ctx->begin;
                 for(;cur != ctx->end;++cur){
-                  printf("%lld\n",*cur);
+                  printf(",,,%lld\n",*cur);
                 }
                 a.gap_context_free(ctx);
             }else{
@@ -627,7 +657,7 @@ int tmain_kautil_cache_file_cache_static() {
         }
         
         {// show result
-            a.debug_out_file(stdout,fd,0,2000);
+//            a.debug_out_file(stdout,fd,0,2000);
         }
         
         exit(0);
