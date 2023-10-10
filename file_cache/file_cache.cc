@@ -273,9 +273,10 @@ struct cache{
     struct true_nearest_result{
         value_type value=0;
         offset_type pos=0;
+        bool is_contained=false;
     };
 //    true_nearest_result true_nearest(value_type input_value,kautil::algorithm::btree_search_result<btree_preference> & ){
-    true_nearest_result true_nearest(value_type input_value,value_type nearest_value,offset_type nearest_pos){
+    true_nearest_result true_nearest(value_type input_value,bool direction,value_type nearest_value,offset_type nearest_pos){
         auto overflow_upper=false;
         auto overflow_lower=false;
         
@@ -296,7 +297,7 @@ struct cache{
         if(vpos1+sizeof(value_type) < m->prfx->size()){
             m->prfx->read(vpos1+sizeof(value_type),(void**)&vp1,sizeof(value_type));
         }else{
-            v1 = 0;
+            m->prfx->read(m->prfx->size()-sizeof(value_type),(void**)&vp1,sizeof(value_type));
             vpos1=m->prfx->size();
             overflow_upper=true;
         }
@@ -318,19 +319,15 @@ struct cache{
                 +!(diff_l < diff_r)*vpos1; 
         
         
-        
-        
-        return {.value=start_v1,.pos=start_pos};
+        return {.value=start_v1,.pos=start_pos,.is_contained=(2==(nearest_value <= input_value)+(input_value <=v1))};
     }
     
-    bool inside_range(value_type cmp, value_type pole0, value_type pole1){ return (2==((pole0 <= cmp) + (cmp <= pole1))) +(2==((pole0 <= cmp) + (cmp <= pole1))); }
+    bool inside_range(value_type cmp, value_type pole0, value_type pole1){ return (2==((pole0 <= cmp) + (cmp <= pole1))) +(2==((pole1 <= cmp) + (cmp <= pole0))); }
     
     struct gap_context{ value_type *begin;value_type *end=0; value_type * entity=0; };
     void gap_context_free(gap_context * ctx){ delete ctx->entity; delete ctx; }
     
     gap_context* gap(value_type input[2]){ 
-        
-        //file_syscall_8b_pref pref{.fd=m->prfx->fd};
         
         typename kautil::algorithm::btree_search<btree_preference>::btree_search_result a;
         auto info0 = kautil::algorithm::btree_search{m->prfx}.search(input[0]);
@@ -339,18 +336,12 @@ struct cache{
         auto overflow_upper=false;
         auto overflow_lower=false;
         
-        auto v0 =true_nearest(input[0],info0.nearest_value,info0.nearest_pos);
-        auto v0_is_contained = inside_range(input[0],info0.nearest_value,info0.neighbor_value);
+        auto v0 =true_nearest(input[0],info0.direction,info0.nearest_value,info0.nearest_pos);
+        auto v1 =true_nearest(input[1],info1.direction,info1.nearest_value,info1.nearest_pos);
         
-        auto v1 =true_nearest(input[1],info1.nearest_value,info1.nearest_pos);
-        auto v1_is_contained = inside_range(input[1],info1.nearest_value,info1.neighbor_value);
-        
-        if(v0_is_contained && v1_is_contained && v0.pos==v1.pos){
-            return 0;
-        }
+        if(0==( !v0.is_contained + !v1.is_contained + !(v0.pos==v1.pos) ))return 0;
         
         auto entity_bytes = v1.pos -v0.pos+m->prfx->block_size();
-        //auto entity_len = entity_bytes/ sizeof(value_type)+2;
         
         auto low_pos = (info0.nearest_value<v0.value)*info0.nearest_pos + !(info0.nearest_value<v0.value)*v0.pos; 
         auto high_pos = (info1.nearest_value>v1.value)*info1.nearest_pos + !(info1.nearest_value>v1.value)*v1.pos; 
@@ -359,8 +350,8 @@ struct cache{
         {
             printf("debug info\n");
             printf("(low ~ high)(%ld ~ %ld)\n",low_pos,high_pos);
-            printf("i0 is contained %d (%lld : %lld ~ %lld)\n",v0_is_contained,input[0],info0.nearest_value,v0.value);
-            printf("i1 is contained %d (%lld : %lld ~ %lld)\n",v1_is_contained,input[1],info1.nearest_value,v1.value);
+            printf("i0 is contained %d (%lld : %lld ~ %lld)\n",v0.is_contained,input[0],info0.nearest_value,v0.value);
+            printf("i1 is contained %d (%lld : %lld ~ %lld)\n",v1.is_contained,input[1],info1.nearest_value,v1.value);
             
             printf("v0 : (t-v,t-p),(%lld : %lld,%ld)\n",input[0],v0.value,v0.pos);
             printf("v1 : (t-v,t-p),(%lld : %lld,%ld)\n",input[1],v1.value,v1.pos);
@@ -391,7 +382,8 @@ struct cache{
                         (entity[entity_len-2]>input[1])*uintptr_t(&entity[entity_len-2]) 
                       +!(entity[entity_len-2]>input[1])*uintptr_t(&entity[entity_len-1]));
         
-        if(v0_is_contained)++beg;
+        
+        beg  += v0.is_contained; 
         return new gap_context{.begin=beg,.end=end,.entity=entity};
         
     }
@@ -558,7 +550,7 @@ int tmain_kautil_cache_file_cache_static() {
             
 //            file_16_struct_type::value_type input[2] ={925,955}; 
 //            file_16_struct_type::value_type input[2] ={935,955}; 
-            file_16_struct_type::value_type input[2] ={945,965}; 
+            file_16_struct_type::value_type input[2] ={1015,1050}; 
 //            
             if(auto ctx = a.gap(input)){
                 auto cur = ctx->begin;
