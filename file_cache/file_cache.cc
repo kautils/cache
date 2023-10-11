@@ -270,37 +270,46 @@ struct cache{
 
     
     
-    struct true_nearest_result{
-        value_type value=0;
-        offset_type pos=0;
-        bool is_contained=false;
-    };
-//    true_nearest_result true_nearest(value_type input_value,kautil::algorithm::btree_search_result<btree_preference> & ){
-    true_nearest_result true_nearest(value_type input_value,bool direction,value_type nearest_value,offset_type nearest_pos){
+    struct true_nearest_result{ value_type value=0;offset_type pos=0;bool is_contained=false; };
+    true_nearest_result true_nearest(value_type input_value,bool direction,bool is_overflow,value_type nearest_value,offset_type nearest_pos){
         auto overflow_upper=false;
         auto overflow_lower=false;
         
         auto v =value_type(0);
-        auto vpos =nearest_pos;
         auto vp = &v;
-        if(vpos>sizeof(value_type)){
-            m->prfx->read(vpos-sizeof(value_type),(void**)&vp,sizeof(value_type));
-        }else{
-            v = 0;
-            vpos= 0;
+        if(0 == (!is_overflow + !(direction<0)) ){
+            v = input_value;
+            nearest_pos= 0;
             overflow_lower=true;
-        }
+        }else m->prfx->read(nearest_pos-sizeof(value_type),(void**)&vp,sizeof(value_type));
+        
+//            if(nearest_pos>sizeof(value_type)){
+//                m->prfx->read(nearest_pos-sizeof(value_type),(void**)&vp,sizeof(value_type));
+//            }
+//            else{
+//                v = 0;
+//                nearest_pos= 0;
+//                overflow_lower=true;
+//            }
         
         auto v1 =value_type(0);
-        auto vpos1 = nearest_pos;
         auto vp1 = &v1;
-        if(vpos1+sizeof(value_type) < m->prfx->size()){
-            m->prfx->read(vpos1+sizeof(value_type),(void**)&vp1,sizeof(value_type));
+        
+        if(0 == (!is_overflow + !(direction>0)) ){
+            v = input_value;
+            nearest_pos= 0;
+            overflow_lower=true;
         }else{
-            m->prfx->read(m->prfx->size()-sizeof(value_type),(void**)&vp1,sizeof(value_type));
-            vpos1=m->prfx->size();
-            overflow_upper=true;
+            m->prfx->read(nearest_pos+sizeof(value_type),(void**)&vp1,sizeof(value_type));
         }
+        
+//        if(nearest_pos+sizeof(value_type) < m->prfx->size()){
+//            m->prfx->read(nearest_pos+sizeof(value_type),(void**)&vp1,sizeof(value_type));
+//        }else{
+//            m->prfx->read(m->prfx->size()-sizeof(value_type),(void**)&vp1,sizeof(value_type));
+//            nearest_pos=m->prfx->size();
+//            overflow_upper=true;
+//        }
         
         auto diff_l = 
                   (v > input_value)*((v - input_value)) 
@@ -315,27 +324,15 @@ struct cache{
                 +!(diff_l < diff_r)*v1; 
         
         auto start_pos = 
-                  (diff_l < diff_r)*vpos
-                +!(diff_l < diff_r)*vpos1; 
+                  (diff_l < diff_r)*nearest_pos
+                +!(diff_l < diff_r)*nearest_pos; 
         
-        
-        return {.value=start_v1,.pos=start_pos,.is_contained=(2==(nearest_value <= input_value)+(input_value <=v1))};
+        auto is_contained=bool(!is_overflow*(2==(nearest_value <= input_value)+(input_value <=v1)));
+        return {.value=start_v1,.pos=start_pos,.is_contained=is_contained};
     }
     
-    bool inside_range(value_type cmp, value_type pole0, value_type pole1){ return (2==((pole0 <= cmp) + (cmp <= pole1))) +(2==((pole1 <= cmp) + (cmp <= pole0))); }
-    struct gap_context{ value_type *begin;value_type *end=0; value_type * entity=0; };
-    void gap_context_free(gap_context * ctx){ if(ctx)delete ctx->entity; delete ctx; }
     
-    
-    struct neighbor_relation_result{
-        value_type right_value;
-        offset_type right_pos;
-        
-        bool is_contained = false;
-    };
-    
-    
-    neighbor_relation_result neighbor_relation(
+    value_type adjust_with_neighbor(
             value_type i
             ,bool d
             ,value_type neighbor_v
@@ -349,41 +346,40 @@ struct cache{
             next_pos
             ,(void**)&ptr
             ,sizeof(value_type));
-
-        return neighbor_relation_result{
-            .right_value=next_value    
-            ,.right_pos=next_pos 
-            ,.is_contained=bool((2==((neighbor_v<=i) + (i<=next_value))) + (2==((next_value<=i) + (i<=neighbor_v))))
-        };
+        
+        auto is_contained = bool((2==((neighbor_v<=i) + (i<=next_value))) + (2==((next_value<=i) + (i<=neighbor_v))));
+        return 
+              is_contained*next_value
+            +!is_contained*i;
     }
+    
+    
+    
+    bool inside_range(value_type cmp, value_type pole0, value_type pole1){ return (2==((pole0 <= cmp) + (cmp <= pole1))) +(2==((pole1 <= cmp) + (cmp <= pole0))); }
+    struct gap_context{ value_type *begin;value_type *end=0; value_type * entity=0; };
+    void gap_context_free(gap_context * ctx){ if(ctx)delete ctx->entity; delete ctx; }
+    
+    
     
     gap_context* gap(value_type input[2]){ 
         
         auto info0 = kautil::algorithm::btree_search{m->prfx}.search(input[0]);
         auto info1 = kautil::algorithm::btree_search{m->prfx}.search(input[1]);
         
-        auto v0 =true_nearest(input[0],info0.direction,info0.nearest_value,info0.nearest_pos);
-        auto v1 =true_nearest(input[1],info1.direction,info1.nearest_value,info1.nearest_pos);
-        v0.is_contained*=!info0.overflow;
-        v0.is_contained*=!info1.overflow;
+        auto v0 =true_nearest(input[0],info0.direction,info0.overflow,info0.nearest_value,info0.nearest_pos);
+        auto v1 =true_nearest(input[1],info1.direction,info1.overflow,info1.nearest_value,info1.nearest_pos);
         if(0==( !v0.is_contained + !v1.is_contained + !(v0.pos==v1.pos) ))return 0;
         
-        
-        // adjust inputs if it is contained by the neighbor range.
-            // input[0] => with right_value
-            // input[1] => with left_value
-        auto v0_is_contained_by_neighbor = false;
-        if(!v0.is_contained){
-            auto ninf0 = neighbor_relation(input[0],info0.direction,info0.neighbor_value,info0.neighbor_pos);
-            v0_is_contained_by_neighbor=ninf0.is_contained*=!info0.overflow;
-            input[0] = ninf0.is_contained*ninf0.right_value+!ninf0.is_contained*input[0];
+        if(0==(!v0.is_contained+!info0.overflow)){
+            input[0] = adjust_with_neighbor(input[0],info0.direction,info0.neighbor_value,info0.neighbor_pos);
+        }else{
+            input[0] = v0.value;
         }
         
-        auto v1_is_contained_by_neighbor = false;
-        if(v1.is_contained){
-            auto ninf1 = neighbor_relation(input[1],info1.direction,info1.neighbor_value,info1.neighbor_pos);
-            ninf1.is_contained*=!info1.overflow;
-            input[1] = ninf1.is_contained*info1.neighbor_value+!ninf1.is_contained*input[1]; 
+        if(0==(!v1.is_contained+!info1.overflow)){
+            input[1] = adjust_with_neighbor(input[1],info1.direction,info1.neighbor_value,info1.neighbor_pos);
+        }else{
+            input[1] = v1.value;
         }
         
         auto entity_bytes = v1.pos -v0.pos+m->prfx->block_size();
@@ -403,22 +399,6 @@ struct cache{
 
 
         auto block_size = m->prfx->block_size();
-        
-        // todo overflow : low_pos+sizeof(value_type) >= size()? 
-//        auto entity_len  = ((high_pos - low_pos + sizeof(value_type))/sizeof(value_type)) +4;
-//        auto entity = new value_type[entity_len+1]; /* +1 : for the end value */
-//        auto arr_len = entity_len-4;
-//        auto arr = entity+2;
-//        m->prfx->read(low_pos,(void**)&arr,arr_len*sizeof(value_type));
-//        
-//        // this is intended. i wannaed shift values.
-//        auto & entity_overflow0 = entity[0];
-//        auto & entity_overflow1 = entity[entity_len-1];
-//        auto & entity_input = entity[1];
-//        auto & entity_array_start = entity[2];
-//        auto & entity_input1 = entity[entity_len-2];
-//        auto & entity_array_end = entity[entity_len-3];
-        
         auto entity_len  = ((high_pos - low_pos + sizeof(value_type))/sizeof(value_type)) +2;
         auto entity = new value_type[entity_len+1]; /* +1 : for the end value */
         auto arr_len = entity_len-2;
@@ -426,8 +406,6 @@ struct cache{
         m->prfx->read(low_pos,(void**)&arr,arr_len*sizeof(value_type));
         
         // this is intended. i wannaed shift values.
-//        auto & entity_overflow0 = entity[0];
-//        auto & entity_overflow1 = entity[entity_len-1];
         auto & entity_input = entity[0];
         auto & entity_array_start = entity[1];
         auto & entity_input1 = entity[entity_len-1];
@@ -435,8 +413,6 @@ struct cache{
         
         
         auto res = new gap_context{.entity=entity};
-//        entity_overflow0=v0.value;
-//        entity_overflow1=v1.value;
         
         entity_input = (entity_array_start>input[0])*input[0] + !(entity_array_start>input[0])*entity_array_start;
         entity_array_start = !(entity_array_start>input[0])*input[0] + (entity_array_start>input[0])*entity_array_start;
@@ -470,6 +446,8 @@ struct cache{
         
         
         res->begin  += v0.is_contained;
+        
+        
         return res;
         
     }
@@ -614,11 +592,11 @@ int tmain_kautil_cache_file_cache_static() {
 
         {// gap
 //            file_16_struct_type::value_type input[2] ={10,90};  
-            file_16_struct_type::value_type input[2] ={10,2000};  
+//            file_16_struct_type::value_type input[2] ={10,2000};  
 //            file_16_struct_type::value_type input[2] ={890,925}; 
-//            file_16_struct_type::value_type input[2] ={911,935}; 
+//            file_16_struct_type::value_type input[2] ={911,935}; // *
 //            file_16_struct_type::value_type input[2] ={920,950}; 
-//            file_16_struct_type::value_type input[2] ={920,951};
+//            file_16_struct_type::value_type input[2] ={920,951}; // *
             
 //            file_16_struct_type::value_type input[2] ={925,927}; 
 //            file_16_struct_type::value_type input[2] ={916,939}; 
