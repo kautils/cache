@@ -5,4 +5,4 @@ project(KautilFileCache.${__version}
         VERSION ${__version}
         )
 unset(__version)
-include(${CMAKE_CURRENT_LIST_DIR}/file_cache/file_cache.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/cache/cache.cmake)
