@@ -3,6 +3,8 @@ set(m ${PROJECT_NAME})
 list(APPEND ${m}_unsetter )
 
 
+
+
 if(NOT EXISTS ${CMAKE_BINARY_DIR}/CMakeKautilHeader.cmake)
     file(DOWNLOAD https://raw.githubusercontent.com/kautils/CMakeKautilHeader/v0.0.1/CMakeKautilHeader.cmake ${CMAKE_BINARY_DIR}/CMakeKautilHeader.cmake)
 endif()
@@ -23,8 +25,21 @@ install(FILES ${${m}_region_hpp} DESTINATION include/kautil/region )
 install(FILES ${${m}_cache_hpp} DESTINATION include/kautil/cache )
 
 
+
 find_package(KautilRegion.0.0.1.interface REQUIRED)
 find_package(KautilAlgorithmBtreeSearch.1.0.1.interface REQUIRED)
+
+string(APPEND ${m}_findpkgs
+    "if(EXISTS \"\\$\\{PACKAGE_PREFIX_DIR}/lib/cmake/KautilRegion.0.0.1\")\n"
+    "\t set(KautilRegion.0.0.1.interface_DIR \"\\$\\{PACKAGE_PREFIX_DIR}/lib/cmake/KautilRegion.0.0.1\")\n"
+    "\t find_package(KautilRegion.0.0.1.interface REQUIRED)\n"
+    "endif()\n"
+        
+    "if(EXISTS \"\\$\\{PACKAGE_PREFIX_DIR}/lib/cmake/KautilAlgorithmBtreeSearch.1.0.1\")\n"
+    "\t set(KautilAlgorithmBtreeSearch.1.0.1_DIR \"\\$\\{PACKAGE_PREFIX_DIR}/lib/cmake/KautilAlgorithmBtreeSearch.1.0.1\")\n"
+    "\t find_package(KautilAlgorithmBtreeSearch.1.0.1.interface REQUIRED)\n"
+    "endif()\n"
+)
 
 set(module_name cache)
 unset(srcs)
@@ -45,6 +60,10 @@ set(${module_name}_common_pref
     DESTINATION_CMAKE_DIR cmake
     DESTINATION_LIB_DIR lib
 )
+
+ list(APPEND ${module_name}_common_pref EXPORT_CONFIG_IN_ADDITIONAL_CONTENT_BEFORE ${${m}_findpkgs})
+
+
 
 CMakeLibraryTemplate(${module_name} EXPORT_LIB_TYPE interface ${${module_name}_common_pref} )
 
