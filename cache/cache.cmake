@@ -47,7 +47,7 @@ file(GLOB srcs ${CMAKE_CURRENT_LIST_DIR}/*.cc)
 set(${module_name}_common_pref
     MODULE_PREFIX kautil
     MODULE_NAME ${module_name}
-    INCLUDES $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}> $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include> $<INSTALL_INTERFACE:include> 
+    INCLUDES $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include> $<INSTALL_INTERFACE:include> 
     SOURCES ${srcs}
     LINK_LIBS 
         kautil::region::0.0.1::interface 
