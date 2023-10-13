@@ -1,10 +1,16 @@
 #ifdef TMAIN_KAUTIL_CACHE_INTERFACE
 
 
+
+
 int tmain_kautil_cache_file_cache_static();
+int tmain_kautil_cache_file_cache_static_case_0();
 int main(){
-    return tmain_kautil_cache_file_cache_static();
+    return tmain_kautil_cache_file_cache_static_case_0();
+    //return tmain_kautil_cache_file_cache_static();
 }
+
+#include "stdio.h"
 
 #include "kautil/cache/cache.hpp"
 #include <stdio.h>
@@ -13,8 +19,9 @@ int main(){
 #include <stdlib.h>
 #include <unistd.h>
 
-struct file_syscall_16b_pref{
-    using value_type = uint64_t;
+template<typename premitive>
+struct file_syscall_premitive{
+    using value_type = premitive;
     using offset_type = long;
 
     int fd=-1;
@@ -22,7 +29,7 @@ struct file_syscall_16b_pref{
     offset_type buffer_size = 0;
     struct stat st;
     
-    ~file_syscall_16b_pref(){ free(buffer); }
+    ~file_syscall_premitive(){ free(buffer); }
     offset_type block_size(){ return sizeof(value_type)*2; }
     offset_type size(){ fstat(fd,&st);return static_cast<offset_type>(st.st_size); }
     
@@ -57,6 +64,9 @@ struct file_syscall_16b_pref{
     
     int flush_buffer(){ return 0; }
 };
+
+using file_syscall_16b_pref= file_syscall_premitive<uint64_t>;
+using file_syscall_16b_f_pref= file_syscall_premitive<double>;
 
 
 struct file_capi_buffer_16b_pref{
@@ -129,12 +139,69 @@ void debug_out_file(FILE* outto,int fd,offset_type from,offset_type to){
     }
 }
 
+template<typename value_type,typename offset_type>
+void debug_out_file_f(FILE* outto,int fd,offset_type from,offset_type to){
+    struct stat st;
+    fstat(fd,&st);
+    auto cnt = 0;
+    lseek(fd,0,SEEK_SET);
+    auto start = from;
+    auto size = st.st_size;
+    value_type block[2];
+    for(auto i = 0; i< size; i+=(sizeof(value_type)*2)){
+        if(from <= i && i<= to ){
+            lseek(fd,i,SEEK_SET);
+            ::read(fd,&block, sizeof(value_type) * 2);
+            //            read_block(i,block);
+            printf("[%lld] %lf %lf\n",i,block[0],block[1]);fflush(outto);
+        }
+    }
+}
+
 
 #include <string>
 #include <fcntl.h>
 int mkdir_recurst(char * p);
-int tmain_kautil_cache_file_cache_static() {
+
+
+int tmain_kautil_cache_file_cache_static_case_0() {
     
+    auto dir = (char*)"tmain_kautil_cache_file_cache_static";
+    auto fn = (char*)".cache";
+    
+    if(mkdir_recurst(dir)){
+        fprintf(stderr,"fail to create %s",dir);
+        abort();
+    }
+    auto path = std::string{dir} + "/" + fn;
+    auto f = path.data();
+    remove(f);
+    
+    auto fd = int(-1);
+    {
+        struct stat st;
+        if(stat(f,&st)){
+            fd = open(f,O_CREAT|O_BINARY|O_EXCL|O_RDWR,0755);
+        }else{
+            fd = open(f,O_RDWR|O_BINARY);
+        }
+    }
+    using file_16_struct_type = file_syscall_16b_f_pref; 
+    auto pref = file_16_struct_type{.fd=fd};
+    auto a = kautil::cache{&pref};
+    file_16_struct_type::value_type input[2] = {0.0,9.0}; // case2 : shrink  
+    auto fw = a.merge(input);
+    
+    if(!a.exists(input)){ printf("not found\n");return 1; }
+    
+    {// show result
+        debug_out_file_f<file_16_struct_type::value_type,file_16_struct_type::offset_type>(stdout,fd,0,16);
+    }
+
+    return(0);
+}
+
+int tmain_kautil_cache_file_cache_static() {
     
     
     auto dir = (char*)"tmain_kautil_cache_file_cache_static";
@@ -160,6 +227,7 @@ int tmain_kautil_cache_file_cache_static() {
     
     
     using file_16_struct_type = file_syscall_16b_pref; 
+//    using file_16_struct_type = file_capi_buffer_16b_pref; 
     
     auto shift = 100;
     auto cnt = 0;
@@ -182,8 +250,8 @@ int tmain_kautil_cache_file_cache_static() {
         //file_syscall_16b_pref::value_type input[2] = {155,158}; // case : extend  
 //        file_16_struct_type::value_type input[2] = {920,930}; // case : shrink  
         file_16_struct_type::value_type input[2] = {500,900}; // case2 : shrink  
-        //auto pref = file_16_struct_type{.f=fdopen(fd,"r+b")};
         auto pref = file_16_struct_type{.fd=fd};
+//        auto pref = file_16_struct_type{.f=fdopen(fd,"r+b")};
         auto a = kautil::cache{&pref};
         auto fw = a.merge(input);
         
