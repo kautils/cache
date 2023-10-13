@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 
+
 namespace kautil{
 
 
@@ -17,70 +18,12 @@ struct cache{
     
     cache(preference_type *  prf) : pref(prf){}
     ~cache(){ }
-    
-    bool exists(value_type input[2]){
-        auto btres =kautil::algorithm::btree_search{pref}.search(static_cast<value_type>(input[0]), false);
-        if(btres.direction) return false;
-        auto nearest_right = value_type(0);
-        auto nearest_right_ptr = &nearest_right;
-        pref->read_value(btres.nearest_pos + sizeof(value_type), &nearest_right_ptr);
-        return 2== (((input[0] == btres.nearest_value) +(input[1] == *nearest_right_ptr)));
-    }
-    
-    
-    int merge(value_type input[2]){ 
-        value_type diff = 1;
-        
-        auto btres =kautil::algorithm::btree_search{pref}.search(static_cast<value_type>(input[0]));
-        {// return immediately
-            auto nearest_right = value_type(0);
-            auto nearest_right_ptr = &nearest_right;
-            pref->read_value(btres.nearest_pos + sizeof(value_type), &nearest_right_ptr);
-            if(2==((input[0] == btres.nearest_value) +(input[1] == *nearest_right_ptr))) return 0;
-        }
-        
-        auto block_size=pref->block_size();
-        auto start_block =btres.nearest_pos; 
-        value_type cmp[2];
-        value_type new_block[2]={input[0],input[1]};
-        auto gap_cnt=-1;{
-            auto max_size=pref->size();
-            for(auto i = start_block; i < max_size; i+=block_size ){
-                read_block(i,cmp);
-                if(!( (input[1] >= cmp[0])
-                    + ((cmp[0]-input[1]) <= diff))
-                ) break;
-                
-                new_block[1] =cmp[1];
-                ++gap_cnt;
-            }
-        }
-        
-        auto rpos = 
-             !(btres.neighbor_pos < btres.nearest_pos)*btres.neighbor_pos 
-             +(btres.neighbor_pos < btres.nearest_pos)*btres.nearest_pos;
-        if(gap_cnt > 0) { /* possible to shrink region*/
-            auto end_block = start_block + (block_size * (gap_cnt+1) );
-            auto shrink_size = block_size*gap_cnt;
-            write_block(start_block,new_block);
-            //printf("%ld %ld %d\n",end_block,shrink_size,write_buffer_size); fflush(stdout); 
-            kautil::region{pref}.shrink(end_block, shrink_size, buffer_size);
-        }else if(gap_cnt < 0){ /* block is unique. must extend region for that block. */
-            kautil::region{pref}.claim(rpos, block_size, buffer_size);
-            write_block(rpos,input);
-        }else{ /* block is contained by (or has overlap with) the first one. possible to merge them. */
-            //printf("write (%ld,b(%lld),e(%lld))\n",start_block,new_block[0],new_block[1]); fflush(stdout);
-            write_block(start_block,new_block);
-        }
-        
-        pref->flush_buffer();
-        return 0;
-    }
-    
 
-    
+    int merge(value_type * begin,value_type * end){ value_type input[2]={*begin,*end};return merge(input); }
+    bool exists(value_type * begin,value_type * end){ value_type input[2]={*begin,*end};return exists(input); }
     struct gap_context{ value_type *begin;value_type *end=0; value_type * entity=0; };
     void gap_context_free(gap_context * ctx){ if(ctx)delete ctx->entity; delete ctx; }
+    gap_context* gap(value_type * begin,value_type * end){ value_type input[2]={*begin,*end};return gap(input); }
     gap_context* gap(value_type input[2]){ 
         
         auto info0 = kautil::algorithm::btree_search{pref}.search(input[0]);
@@ -159,6 +102,66 @@ struct cache{
         return res;
         
     }
+    
+    int merge(value_type input[2]){ 
+        value_type diff = 1;
+        
+        auto btres =kautil::algorithm::btree_search{pref}.search(static_cast<value_type>(input[0]));
+        {// return immediately
+            auto nearest_right = value_type(0);
+            auto nearest_right_ptr = &nearest_right;
+            pref->read_value(btres.nearest_pos + sizeof(value_type), &nearest_right_ptr);
+            if(2==((input[0] == btres.nearest_value) +(input[1] == *nearest_right_ptr))) return 0;
+        }
+        
+        auto block_size=pref->block_size();
+        auto start_block =btres.nearest_pos; 
+        value_type cmp[2];
+        value_type new_block[2]={input[0],input[1]};
+        auto gap_cnt=-1;{
+            auto max_size=pref->size();
+            for(auto i = start_block; i < max_size; i+=block_size ){
+                read_block(i,cmp);
+                if(!( (input[1] >= cmp[0])
+                    + ((cmp[0]-input[1]) <= diff))
+                ) break;
+                
+                new_block[1] =cmp[1];
+                ++gap_cnt;
+            }
+        }
+        
+        auto rpos = 
+             !(btres.neighbor_pos < btres.nearest_pos)*btres.neighbor_pos 
+             +(btres.neighbor_pos < btres.nearest_pos)*btres.nearest_pos;
+        if(gap_cnt > 0) { /* possible to shrink region*/
+            auto end_block = start_block + (block_size * (gap_cnt+1) );
+            auto shrink_size = block_size*gap_cnt;
+            write_block(start_block,new_block);
+            //printf("%ld %ld %d\n",end_block,shrink_size,write_buffer_size); fflush(stdout); 
+            kautil::region{pref}.shrink(end_block, shrink_size, buffer_size);
+        }else if(gap_cnt < 0){ /* block is unique. must extend region for that block. */
+            kautil::region{pref}.claim(rpos, block_size, buffer_size);
+            write_block(rpos,input);
+        }else{ /* block is contained by (or has overlap with) the first one. possible to merge them. */
+            //printf("write (%ld,b(%lld),e(%lld))\n",start_block,new_block[0],new_block[1]); fflush(stdout);
+            write_block(start_block,new_block);
+        }
+        
+        pref->flush_buffer();
+        return 0;
+    }
+   
+    
+    bool exists(value_type input[2]){
+        auto btres =kautil::algorithm::btree_search{pref}.search(static_cast<value_type>(input[0]), false);
+        if(btres.direction) return false;
+        auto nearest_right = value_type(0);
+        auto nearest_right_ptr = &nearest_right;
+        pref->read_value(btres.nearest_pos + sizeof(value_type), &nearest_right_ptr);
+        return 2== (((input[0] == btres.nearest_value) +(input[1] == *nearest_right_ptr)));
+    }
+    
     
     
 private:
