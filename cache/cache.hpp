@@ -268,7 +268,6 @@ private:
             ,value_type neighbor_v
             ,offset_type neighbor_pos 
             ){
-        //if(ovf) return i;
         if(ovf+!d) return i;
         auto next_value = value_type(0);
         auto next_pos = neighbor_pos+static_cast<offset_type>(sizeof(value_type)*1);
