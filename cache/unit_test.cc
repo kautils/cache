@@ -2,11 +2,13 @@
 
 
 
-
 int tmain_kautil_cache_file_cache_static();
+int tmain_kautil_cache_file_cache_static_case_1();
 int tmain_kautil_cache_file_cache_static_case_0();
 int main(){
-    return tmain_kautil_cache_file_cache_static_case_0();
+    
+    return tmain_kautil_cache_file_cache_static_case_1();
+    //return tmain_kautil_cache_file_cache_static_case_0();
     //return tmain_kautil_cache_file_cache_static();
 }
 
@@ -164,6 +166,52 @@ void debug_out_file_f(FILE* outto,int fd,offset_type from,offset_type to){
 int mkdir_recurst(char * p);
 
 
+
+int tmain_kautil_cache_file_cache_static_case_1(){
+    auto dir = (char*)"tmain_kautil_cache_file_cache_static";
+    auto fn = (char*)".cache";
+    
+    if(mkdir_recurst(dir)){
+        fprintf(stderr,"fail to create %s",dir);
+        abort();
+    }
+    auto path = std::string{dir} + "/" + fn;
+    auto f = path.data();
+    remove(f);
+    
+    auto fd = int(-1);
+    {
+        struct stat st;
+        if(stat(f,&st)){
+            fd = open(f,O_CREAT|O_BINARY|O_EXCL|O_RDWR,0755);
+        }else{
+            fd = open(f,O_RDWR|O_BINARY);
+        }
+    }
+    
+    using file_16_struct_type = file_syscall_16b_f_pref; 
+    auto pref = file_16_struct_type{.fd=fd};
+    auto a = kautil::cache{&pref};
+    file_16_struct_type::value_type input[2] = {0.0,9.0}; // case2 : shrink  
+    auto fw = a.merge(input);
+
+    if(!a.exists(input)){ printf("not found\n");return 1; }
+    
+    auto itr = a.gap_iterator(input);
+    
+    
+    
+    
+    {// show result
+        debug_out_file_f<file_16_struct_type::value_type,file_16_struct_type::offset_type>(stdout,fd,0,16);
+    }
+
+    return 0;
+}
+    
+
+
+
 int tmain_kautil_cache_file_cache_static_case_0() {
     
     auto dir = (char*)"tmain_kautil_cache_file_cache_static";
@@ -202,7 +250,6 @@ int tmain_kautil_cache_file_cache_static_case_0() {
 }
 
 int tmain_kautil_cache_file_cache_static() {
-    
     
     auto dir = (char*)"tmain_kautil_cache_file_cache_static";
     auto fn = (char*)".cache";
@@ -246,9 +293,9 @@ int tmain_kautil_cache_file_cache_static() {
     lseek(fd,0,SEEK_SET);
     
     {
-        //file_syscall_16b_pref::value_type input[2] = {155,159}; // case : no extend  
+        //file_syscall_16b_pref::value_type input[2] = {155,159}; // case : no extend 
         //file_syscall_16b_pref::value_type input[2] = {155,158}; // case : extend  
-//        file_16_struct_type::value_type input[2] = {920,930}; // case : shrink  
+        //file_16_struct_type::value_type input[2] = {920,930}; // case : shrink  
         file_16_struct_type::value_type input[2] = {500,900}; // case2 : shrink  
         auto pref = file_16_struct_type{.fd=fd};
 //        auto pref = file_16_struct_type{.f=fdopen(fd,"r+b")};
@@ -298,7 +345,6 @@ int tmain_kautil_cache_file_cache_static() {
 //            debug_out_file<file_16_struct_type::value_type,file_16_struct_type::offset_type>(stdout,fd,0,3000);
         }
     }
-    
     return(0);
 }
 

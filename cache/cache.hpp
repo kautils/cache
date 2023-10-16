@@ -21,6 +21,28 @@ struct cache{
 
     int merge(value_type * begin,value_type * end){ value_type input[2]={*begin,*end};return merge(input); }
     bool exists(value_type * begin,value_type * end){ value_type input[2]={*begin,*end};return exists(input); }
+    
+    
+    struct gap_iterator_ctx{
+        value_type beg;
+        value_type end;
+        value_type cur_l;
+        value_type cur_r;
+    };
+    gap_iterator_ctx* gap_iterator(value_type input[2]){ return new gap_iterator_ctx{.beg=input[0],.end=input[1]}; }
+    bool gap_iterator_next(){
+        
+        return true;
+        
+    }
+    
+    void gap_iterator_free(gap_iterator_ctx* itr){ delete itr; }
+    
+    
+    
+    
+    
+    
     struct gap_context{ value_type *begin;value_type *end=0; value_type * entity=0; };
     void gap_context_free(gap_context * ctx){ if(ctx)delete ctx->entity; delete ctx; }
     gap_context* gap(value_type * begin,value_type * end){ value_type input[2]={*begin,*end};return gap(input); }
@@ -106,7 +128,7 @@ struct cache{
     int merge(value_type input[2]){ 
         value_type diff = 1;
         
-        auto btres =kautil::algorithm::btree_search{pref}.search(static_cast<value_type>(input[0]));
+         auto btres =kautil::algorithm::btree_search{pref}.search(static_cast<value_type>(input[0]));
         {// return immediately
             auto nearest_right = value_type(0);
             auto nearest_right_ptr = &nearest_right;
