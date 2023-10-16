@@ -216,31 +216,14 @@ private:
         ///@note cache file has ranges, so need to adjust the result of btree saerch for it.
     struct adjust_nearest_result{ value_type value=0;offset_type pos=0;bool is_contained=false; };
     adjust_nearest_result adjust_nearest(value_type input_value,bool direction,bool is_overflow,value_type nearest_value,offset_type nearest_pos){
-        auto overflow_upper=false;
-        auto overflow_lower=false;
         
         auto v =value_type(0);
         auto vp = &v;
-        if(0 == (!is_overflow + !(direction<0)) ){
-            v = input_value;
-            nearest_pos= 0;
-            overflow_lower=true;
-        }else{
-            pref->read(nearest_pos*(nearest_pos - sizeof(value_type)), (void**)&vp, sizeof(value_type));
-            // ++++++++++++++++ pref->read(nearest_pos - sizeof(value_type), (void**)&vp, sizeof(value_type));
-        }
+        pref->read(bool(nearest_pos)*(nearest_pos - sizeof(value_type)), (void**)&vp, sizeof(value_type));
         
         auto v1 =value_type(0);
         auto vp1 = &v1;
-        
-        if(0 == (!is_overflow + !(direction>0)) ){
-            // ++++++++++++++++ v = input_value;
-            v1 = input_value;
-            nearest_pos= 0;
-            overflow_lower=true;
-        }else{
-            pref->read(nearest_pos + sizeof(value_type), (void**)&vp1, sizeof(value_type));
-        }
+        pref->read(bool(nearest_pos)*(nearest_pos + sizeof(value_type)), (void**)&vp1, sizeof(value_type));
         
         auto diff_l = 
                   (v > input_value)*((v - input_value)) 
