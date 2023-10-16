@@ -227,14 +227,14 @@ private:
             overflow_lower=true;
         }else{
             pref->read(nearest_pos*(nearest_pos - sizeof(value_type)), (void**)&vp, sizeof(value_type));
-            //pref->read(nearest_pos - sizeof(value_type), (void**)&vp, sizeof(value_type));
+            // ++++++++++++++++ pref->read(nearest_pos - sizeof(value_type), (void**)&vp, sizeof(value_type));
         }
         
         auto v1 =value_type(0);
         auto vp1 = &v1;
         
         if(0 == (!is_overflow + !(direction>0)) ){
-            //v = input_value;
+            // ++++++++++++++++ v = input_value;
             v1 = input_value;
             nearest_pos= 0;
             overflow_lower=true;

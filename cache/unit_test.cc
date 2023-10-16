@@ -310,7 +310,7 @@ int tmain_kautil_cache_file_cache_static() {
 
         {// gap
 //            file_16_struct_type::value_type input[2] ={10,2000};  
-//            file_16_struct_type::value_type input[2] ={10,90};  
+            file_16_struct_type::value_type input[2] ={10,90};  
 //            file_16_struct_type::value_type input[2] ={890,925}; 
 //            file_16_struct_type::value_type input[2] ={911,935}; 
 //            file_16_struct_type::value_type input[2] ={920,950}; 
@@ -320,7 +320,7 @@ int tmain_kautil_cache_file_cache_static() {
 //            file_16_struct_type::value_type input[2] ={916,939}; 
 //            file_16_struct_type::value_type input[2] ={911,916};  
 //            file_16_struct_type::value_type input[2] ={931,939}; 
-            file_16_struct_type::value_type input[2] ={925,934}; 
+//            file_16_struct_type::value_type input[2] ={925,934}; 
 //            file_16_struct_type::value_type input[2] ={916,945}; 
 //            file_16_struct_type::value_type input[2] ={916,955}; 
 //            file_16_struct_type::value_type input[2] ={925,945}; 
