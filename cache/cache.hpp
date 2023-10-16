@@ -47,17 +47,20 @@ struct cache{
         auto info1 = kautil::algorithm::btree_search{pref}.search(input[1]);
         auto v0 =adjust_nearest(input[0],info0.direction,info0.overflow,info0.nearest_value,info0.nearest_pos);
         auto v1 =adjust_nearest(input[1],info1.direction,info1.overflow,info1.nearest_value,info1.nearest_pos);
-//        if(0==( !v0.is_contained + !v1.is_contained + !(v0.pos==v1.pos) )){
-//            int jjj = 0;
-//        }
-        input[0]= adjust_with_neighbor(input[0],info0.direction,info0.overflow,info0.neighbor_value,info0.neighbor_pos);
-        input[1]= adjust_with_neighbor(input[1],info1.direction,info1.overflow,info1.neighbor_value,info1.neighbor_pos);
-
+        if(0==( !v0.is_contained + !v1.is_contained + !(v0.pos==v1.pos) ))return 0;
         
-
-        auto entity_bytes = v1.pos - v0.pos + pref->block_size();
-        auto begin = (info0.nearest_value<v0.value)*info0.nearest_pos + !(info0.nearest_value<v0.value)*v0.pos; 
-        auto end = begin + entity_bytes;
+        auto begin = 
+                  v0.is_contained*(v0.pos + sizeof(value_type))
+                +!v0.is_contained*v0.pos;
+        
+        auto end = 
+                  v1.is_contained*v1.pos
+                +!v1.is_contained*(v1.pos + sizeof(value_type));
+        
+        
+//        auto entity_bytes = v1.pos - v0.pos + pref->block_size();
+//        auto begin = (info0.nearest_value<v0.value)*info0.nearest_pos + !(info0.nearest_value<v0.value)*v0.pos; 
+//        auto end = begin + entity_bytes;
         return new gap_iterator{.pos_begin=begin,.pos_end=end,.pos_cur=begin}; 
     }
     
@@ -222,13 +225,17 @@ private:
             v = input_value;
             nearest_pos= 0;
             overflow_lower=true;
-        }else pref->read(nearest_pos - sizeof(value_type), (void**)&vp, sizeof(value_type));
+        }else{
+            pref->read(nearest_pos*(nearest_pos - sizeof(value_type)), (void**)&vp, sizeof(value_type));
+            //pref->read(nearest_pos - sizeof(value_type), (void**)&vp, sizeof(value_type));
+        }
         
         auto v1 =value_type(0);
         auto vp1 = &v1;
         
         if(0 == (!is_overflow + !(direction>0)) ){
-            v = input_value;
+            //v = input_value;
+            v1 = input_value;
             nearest_pos= 0;
             overflow_lower=true;
         }else{
