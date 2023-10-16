@@ -23,27 +23,45 @@ struct cache{
     bool exists(value_type * begin,value_type * end){ value_type input[2]={*begin,*end};return exists(input); }
     
     
-    struct gap_iterator_ctx{
-        value_type beg;
-        value_type end;
-        value_type cur_l;
-        value_type cur_r;
+    struct gap_context{ 
+        value_type *begin;
+        value_type *end=0; 
+        value_type * entity=0;
+        
     };
-    gap_iterator_ctx* gap_iterator(value_type input[2]){ return new gap_iterator_ctx{.beg=input[0],.end=input[1]}; }
-    bool gap_iterator_next(){
+    
+    struct gap_iterator{ 
+        offset_type pos_begin=0;
+        offset_type pos_end=0; 
+        offset_type pos_cur=0; 
         
-        return true;
+        gap_iterator begin(){ return gap_iterator{.pos_begin=pos_begin,pos_end=pos_end,pos_cur=pos_cur}; }
+        gap_iterator end(){ return gap_iterator{.pos_begin=pos_begin,pos_end=pos_end,pos_cur=pos_end}; }
+        bool operator!=(gap_iterator const& l){ return pos_cur != l.pos_cur; }
+        offset_type const& operator*(){ return pos_cur; }
+        gap_iterator & operator++(){ pos_cur+=(sizeof(value_type)*2); return *this; }
+    };
+    
+    gap_iterator* gap_iterator_initialize(value_type input[2]){ 
+        auto info0 = kautil::algorithm::btree_search{pref}.search(input[0]);
+        auto info1 = kautil::algorithm::btree_search{pref}.search(input[1]);
+        auto v0 =adjust_nearest(input[0],info0.direction,info0.overflow,info0.nearest_value,info0.nearest_pos);
+        auto v1 =adjust_nearest(input[1],info1.direction,info1.overflow,info1.nearest_value,info1.nearest_pos);
+//        if(0==( !v0.is_contained + !v1.is_contained + !(v0.pos==v1.pos) )){
+//            int jjj = 0;
+//        }
+        input[0]= adjust_with_neighbor(input[0],info0.direction,info0.overflow,info0.neighbor_value,info0.neighbor_pos);
+        input[1]= adjust_with_neighbor(input[1],info1.direction,info1.overflow,info1.neighbor_value,info1.neighbor_pos);
+
         
+
+        auto entity_bytes = v1.pos - v0.pos + pref->block_size();
+        auto begin = (info0.nearest_value<v0.value)*info0.nearest_pos + !(info0.nearest_value<v0.value)*v0.pos; 
+        auto end = begin + entity_bytes;
+        return new gap_iterator{.pos_begin=begin,.pos_end=end,.pos_cur=begin}; 
     }
     
-    void gap_iterator_free(gap_iterator_ctx* itr){ delete itr; }
-    
-    
-    
-    
-    
-    
-    struct gap_context{ value_type *begin;value_type *end=0; value_type * entity=0; };
+
     void gap_context_free(gap_context * ctx){ if(ctx)delete ctx->entity; delete ctx; }
     gap_context* gap(value_type * begin,value_type * end){ value_type input[2]={*begin,*end};return gap(input); }
     gap_context* gap(value_type input[2]){ 
@@ -250,8 +268,8 @@ private:
             ,value_type neighbor_v
             ,offset_type neighbor_pos 
             ){
-
-        if(ovf) return i;
+        //if(ovf) return i;
+        if(ovf+!d) return i;
         auto next_value = value_type(0);
         auto next_pos = neighbor_pos+static_cast<offset_type>(sizeof(value_type)*1);
         auto ptr = &next_value;

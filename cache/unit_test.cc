@@ -9,7 +9,7 @@ int main(){
     
     return tmain_kautil_cache_file_cache_static_case_1();
     //return tmain_kautil_cache_file_cache_static_case_0();
-    //return tmain_kautil_cache_file_cache_static();
+//    return tmain_kautil_cache_file_cache_static();
 }
 
 #include "stdio.h"
@@ -166,8 +166,8 @@ void debug_out_file_f(FILE* outto,int fd,offset_type from,offset_type to){
 int mkdir_recurst(char * p);
 
 
-
 int tmain_kautil_cache_file_cache_static_case_1(){
+    
     auto dir = (char*)"tmain_kautil_cache_file_cache_static";
     auto fn = (char*)".cache";
     
@@ -196,8 +196,13 @@ int tmain_kautil_cache_file_cache_static_case_1(){
     auto fw = a.merge(input);
 
     if(!a.exists(input)){ printf("not found\n");return 1; }
+    auto itr = a.gap_iterator_initialize(input);
+    for(auto & pos : *itr){
+        printf("+++%ld\n",pos); fflush(stdout);
+    }
     
-    auto itr = a.gap_iterator(input);
+    
+    
     
     
     
@@ -304,7 +309,7 @@ int tmain_kautil_cache_file_cache_static() {
         
 
         {// gap
-            file_16_struct_type::value_type input[2] ={10,2000};  
+//            file_16_struct_type::value_type input[2] ={10,2000};  
 //            file_16_struct_type::value_type input[2] ={10,90};  
 //            file_16_struct_type::value_type input[2] ={890,925}; 
 //            file_16_struct_type::value_type input[2] ={911,935}; 
@@ -321,7 +326,7 @@ int tmain_kautil_cache_file_cache_static() {
 //            file_16_struct_type::value_type input[2] ={925,945}; 
 //            file_16_struct_type::value_type input[2] ={911,925}; 
 //            file_16_struct_type::value_type input[2] ={916,925}; 
-            
+//            
 //            file_16_struct_type::value_type input[2] ={911,955}; 
 //            file_16_struct_type::value_type input[2] ={911,945};  
 //            file_16_struct_type::value_type input[2] ={925,955}; 
