@@ -6,9 +6,9 @@ int tmain_kautil_cache_file_cache_static();
 int tmain_kautil_cache_file_cache_static_case_1();
 int tmain_kautil_cache_file_cache_static_case_0();
 int main(){
-    return tmain_kautil_cache_file_cache_static_case_1();
+//    return tmain_kautil_cache_file_cache_static_case_1();
 //    return tmain_kautil_cache_file_cache_static_case_0();
-//    return tmain_kautil_cache_file_cache_static();
+    return tmain_kautil_cache_file_cache_static();
 }
 
 #include "stdio.h"
@@ -314,7 +314,7 @@ int tmain_kautil_cache_file_cache_static() {
         
 
         {// gap
-//            file_16_struct_type::value_type input[2] ={10,2000};  
+            file_16_struct_type::value_type input[2] ={10,2000};  
 //            file_16_struct_type::value_type input[2] ={10,90};  
 //            file_16_struct_type::value_type input[2] ={890,925}; 
 //            file_16_struct_type::value_type input[2] ={911,935}; 
@@ -337,7 +337,7 @@ int tmain_kautil_cache_file_cache_static() {
 //            file_16_struct_type::value_type input[2] ={925,955}; 
 //            file_16_struct_type::value_type input[2] ={935,955}; 
 //            file_16_struct_type::value_type input[2] ={1980,2000}; 
-            file_16_struct_type::value_type input[2] ={1990,1991};
+//            file_16_struct_type::value_type input[2] ={1990,1991};
 
             if(auto ctx = a.gap(input)){
                 auto cur = ctx->begin;

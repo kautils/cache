@@ -230,7 +230,7 @@ private:
     
         ///@note cache file has ranges, so need to adjust the result of btree saerch for it.
     struct adjust_nearest_result{ value_type value=0;offset_type pos=0;bool is_contained=false; };
-    adjust_nearest_result adjust_nearest(value_type input_value,bool direction,bool is_overflow,value_type nearest_value,offset_type nearest_pos,offset_type max_size){
+    adjust_nearest_result adjust_nearest(value_type input_value,int direction,bool is_overflow,value_type nearest_value,offset_type nearest_pos,offset_type max_size){
         
         auto v =value_type(0);
         auto vp = &v;
