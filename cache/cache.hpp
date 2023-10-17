@@ -43,6 +43,7 @@ struct cache{
     };
     
     gap_iterator* gap_iterator_initialize(value_type input[2]){ 
+        
         auto info0 = kautil::algorithm::btree_search{pref}.search(input[0]);
         auto info1 = kautil::algorithm::btree_search{pref}.search(input[1]);
         auto v0 =adjust_nearest(input[0],info0.direction,info0.overflow,info0.nearest_value,info0.nearest_pos);
@@ -223,7 +224,7 @@ private:
         
         auto v1 =value_type(0);
         auto vp1 = &v1;
-        pref->read(bool(nearest_pos)*(nearest_pos + sizeof(value_type)), (void**)&vp1, sizeof(value_type));
+        pref->read(nearest_pos + sizeof(value_type), (void**)&vp1, sizeof(value_type));
         
         auto diff_l = 
                   (v > input_value)*((v - input_value)) 

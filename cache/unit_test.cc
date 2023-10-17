@@ -7,9 +7,9 @@ int tmain_kautil_cache_file_cache_static_case_1();
 int tmain_kautil_cache_file_cache_static_case_0();
 int main(){
     
-//    return tmain_kautil_cache_file_cache_static_case_1();
+    return tmain_kautil_cache_file_cache_static_case_1();
     //return tmain_kautil_cache_file_cache_static_case_0();
-    return tmain_kautil_cache_file_cache_static();
+//    return tmain_kautil_cache_file_cache_static();
 }
 
 #include "stdio.h"
@@ -200,6 +200,8 @@ int tmain_kautil_cache_file_cache_static_case_1(){
     for(auto & pos : *itr){
         printf("+++%ld\n",pos); fflush(stdout);
     }
+    
+    
     
     
     
