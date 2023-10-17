@@ -46,8 +46,10 @@ struct cache{
         
         auto info0 = kautil::algorithm::btree_search{pref}.search(input[0]);
         auto info1 = kautil::algorithm::btree_search{pref}.search(input[1]);
-        auto v0 =adjust_nearest(input[0],info0.direction,info0.overflow,info0.nearest_value,info0.nearest_pos);
-        auto v1 =adjust_nearest(input[1],info1.direction,info1.overflow,info1.nearest_value,info1.nearest_pos);
+        
+        
+        auto v0 =adjust_nearest(input[0],info0.direction,info0.overflow,info0.nearest_value,info0.nearest_pos,pref->size());
+        auto v1 =adjust_nearest(input[1],info1.direction,info1.overflow,info1.nearest_value,info1.nearest_pos,pref->size());
         if(0==( !v0.is_contained + !v1.is_contained + !(v0.pos==v1.pos) ))return 0;
         
         auto begin = 
@@ -58,10 +60,6 @@ struct cache{
                   v1.is_contained*v1.pos
                 +!v1.is_contained*(v1.pos + sizeof(value_type));
         
-        
-//        auto entity_bytes = v1.pos - v0.pos + pref->block_size();
-//        auto begin = (info0.nearest_value<v0.value)*info0.nearest_pos + !(info0.nearest_value<v0.value)*v0.pos; 
-//        auto end = begin + entity_bytes;
         return new gap_iterator{.pos_begin=begin,.pos_end=end,.pos_cur=begin}; 
     }
     
@@ -73,8 +71,20 @@ struct cache{
         auto info0 = kautil::algorithm::btree_search{pref}.search(input[0]);
         auto info1 = kautil::algorithm::btree_search{pref}.search(input[1]);
         
-        auto v0 =adjust_nearest(input[0],info0.direction,info0.overflow,info0.nearest_value,info0.nearest_pos);
-        auto v1 =adjust_nearest(input[1],info1.direction,info1.overflow,info1.nearest_value,info1.nearest_pos);
+        auto v0 =adjust_nearest(input[0]
+                ,info0.direction
+                ,info0.overflow
+                ,info0.nearest_value
+                ,info0.nearest_pos
+                ,pref->size()
+                );
+        auto v1 =adjust_nearest(input[1]
+                ,info1.direction
+                ,info1.overflow
+                ,info1.nearest_value
+                ,info1.nearest_pos
+                ,pref->size()
+                );
         if(0==( !v0.is_contained + !v1.is_contained + !(v0.pos==v1.pos) ))return 0;
         
         input[0]= adjust_with_neighbor(input[0],info0.direction,info0.overflow,info0.neighbor_value,info0.neighbor_pos);
@@ -216,7 +226,7 @@ private:
     
         ///@note cache file has ranges, so need to adjust the result of btree saerch for it.
     struct adjust_nearest_result{ value_type value=0;offset_type pos=0;bool is_contained=false; };
-    adjust_nearest_result adjust_nearest(value_type input_value,bool direction,bool is_overflow,value_type nearest_value,offset_type nearest_pos){
+    adjust_nearest_result adjust_nearest(value_type input_value,bool direction,bool is_overflow,value_type nearest_value,offset_type nearest_pos,offset_type max_size){
         
         auto v =value_type(0);
         auto vp = &v;
@@ -225,6 +235,7 @@ private:
         auto v1 =value_type(0);
         auto vp1 = &v1;
         pref->read(nearest_pos + sizeof(value_type), (void**)&vp1, sizeof(value_type));
+        
         
         auto diff_l = 
                   (v > input_value)*((v - input_value)) 
@@ -242,7 +253,12 @@ private:
                   (diff_l < diff_r)*nearest_pos
                 +!(diff_l < diff_r)*nearest_pos; 
         
-        auto is_contained=bool(!is_overflow*(2==(nearest_value <= input_value)+(input_value <=v1)));
+        auto is_contained=(2==(nearest_value <= input_value)+(input_value <=v1));
+        
+        auto real_ovf_lower = sizeof(value_type) > nearest_pos;
+        auto real_ovf_upper = max_size <= nearest_pos + sizeof(value_type);
+        is_contained *=!((real_ovf_lower+real_ovf_upper)); // if real_ovf is true, then always false 
+        
         return {.value=start_v1,.pos=start_pos,.is_contained=is_contained};
     }
     

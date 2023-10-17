@@ -8,7 +8,7 @@ int tmain_kautil_cache_file_cache_static_case_0();
 int main(){
     
     return tmain_kautil_cache_file_cache_static_case_1();
-    //return tmain_kautil_cache_file_cache_static_case_0();
+//    return tmain_kautil_cache_file_cache_static_case_0();
 //    return tmain_kautil_cache_file_cache_static();
 }
 
