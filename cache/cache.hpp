@@ -35,9 +35,11 @@ struct cache{
         offset_type pos_end=0; 
         offset_type pos_cur=0; 
         
-        gap_iterator begin(){ return gap_iterator{.pos_begin=pos_begin,pos_end=pos_end,pos_cur=pos_cur}; }
-        gap_iterator end(){ return gap_iterator{.pos_begin=pos_begin,pos_end=pos_end,pos_cur=pos_end}; }
-        bool operator!=(gap_iterator const& l){ return pos_cur != l.pos_cur; }
+        gap_iterator begin(){ return gap_iterator{.pos_begin=pos_begin,.pos_end=pos_end,.pos_cur=pos_cur}; }
+        gap_iterator end(){ return gap_iterator{.pos_begin=pos_begin,.pos_end=pos_end,.pos_cur=pos_end}; }
+        bool operator!=(gap_iterator const& l){ 
+            return  pos_cur != l.pos_cur; 
+        }
         offset_type const& operator*(){ return pos_cur; }
         gap_iterator & operator++(){ pos_cur+=(sizeof(value_type)*2); return *this; }
     };
@@ -46,7 +48,6 @@ struct cache{
         
         auto info0 = kautil::algorithm::btree_search{pref}.search(input[0]);
         auto info1 = kautil::algorithm::btree_search{pref}.search(input[1]);
-        
         
         auto v0 =adjust_nearest(input[0],info0.direction,info0.overflow,info0.nearest_value,info0.nearest_pos,pref->size());
         auto v1 =adjust_nearest(input[1],info1.direction,info1.overflow,info1.nearest_value,info1.nearest_pos,pref->size());
@@ -60,7 +61,10 @@ struct cache{
                   v1.is_contained*v1.pos
                 +!v1.is_contained*(v1.pos + sizeof(value_type));
         
-        return new gap_iterator{.pos_begin=begin,.pos_end=end,.pos_cur=begin}; 
+        return new gap_iterator{
+             .pos_begin=begin
+            ,.pos_end=(end-begin)/(sizeof(value_type)*2)*(sizeof(value_type)*2)
+            ,.pos_cur=begin}; 
     }
     
 
@@ -255,8 +259,8 @@ private:
         
         auto is_contained=(2==(nearest_value <= input_value)+(input_value <=v1));
         
-        auto real_ovf_lower = sizeof(value_type) > nearest_pos;
-        auto real_ovf_upper = max_size <= nearest_pos + sizeof(value_type);
+        auto real_ovf_lower = bool(direction<0)*(sizeof(value_type) > nearest_pos);
+        auto real_ovf_upper = bool(direction>0)*(max_size <= nearest_pos + sizeof(value_type));
         is_contained *=!((real_ovf_lower+real_ovf_upper)); // if real_ovf is true, then always false 
         
         return {.value=start_v1,.pos=start_pos,.is_contained=is_contained};

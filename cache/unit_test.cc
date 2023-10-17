@@ -6,7 +6,6 @@ int tmain_kautil_cache_file_cache_static();
 int tmain_kautil_cache_file_cache_static_case_1();
 int tmain_kautil_cache_file_cache_static_case_0();
 int main(){
-    
     return tmain_kautil_cache_file_cache_static_case_1();
 //    return tmain_kautil_cache_file_cache_static_case_0();
 //    return tmain_kautil_cache_file_cache_static();
@@ -197,8 +196,12 @@ int tmain_kautil_cache_file_cache_static_case_1(){
 
     if(!a.exists(input)){ printf("not found\n");return 1; }
     auto itr = a.gap_iterator_initialize(input);
-    for(auto & pos : *itr){
-        printf("+++%ld\n",pos); fflush(stdout);
+    if(itr){
+        for(auto & pos : *itr){
+            printf("+++%ld\n",pos); fflush(stdout);
+        }
+    }else{
+        printf("there is no gap.\n");
     }
     
     
