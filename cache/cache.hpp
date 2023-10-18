@@ -181,7 +181,7 @@ struct cache{
             for(auto i = start_block; i < max_size; i+=block_size ){
                 read_block(i,cmp);
                 if(!( (input[1] >= cmp[0])
-                    + ((cmp[0]-input[1]) <= diff))
+                    + (cmp[0] <= diff+input[1]))
                 ) break;
                 
                 new_block[1] =cmp[1];

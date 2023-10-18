@@ -6,9 +6,9 @@ int tmain_kautil_cache_file_cache_static();
 int tmain_kautil_cache_file_cache_static_case_1();
 int tmain_kautil_cache_file_cache_static_case_0();
 int main(){
-//    return tmain_kautil_cache_file_cache_static_case_1();
+    return tmain_kautil_cache_file_cache_static_case_1();
 //    return tmain_kautil_cache_file_cache_static_case_0();
-    return tmain_kautil_cache_file_cache_static();
+//    return tmain_kautil_cache_file_cache_static();
 }
 
 #include "stdio.h"
@@ -32,7 +32,11 @@ struct file_syscall_premitive{
     
     ~file_syscall_premitive(){ free(buffer); }
     offset_type block_size(){ return sizeof(value_type)*2; }
-    offset_type size(){ fstat(fd,&st);return static_cast<offset_type>(st.st_size); }
+    offset_type size(){
+        return lseek(fd,0,SEEK_END)- lseek(fd,0,SEEK_SET);
+//        fstat(fd,&st);
+//        return static_cast<offset_type>(st.st_size); 
+    }
     
     void read_value(offset_type const& offset, value_type ** value){
         lseek(fd,offset,SEEK_SET);
@@ -189,19 +193,40 @@ int tmain_kautil_cache_file_cache_static_case_1(){
     }
     
     using file_16_struct_type = file_syscall_16b_f_pref; 
+//    using file_16_struct_type = file_capi_buffer_16b_pref; 
     auto pref = file_16_struct_type{.fd=fd};
+//    auto pref = file_16_struct_type{.f=fdopen(fd,"r+b")};
     auto a = kautil::cache{&pref};
-    file_16_struct_type::value_type input[2] = {0.0,9.0}; // case2 : shrink  
-    auto fw = a.merge(input);
 
-    if(!a.exists(input)){ printf("not found\n");return 1; }
-    auto itr = a.gap_iterator_initialize(input);
-    if(itr){
-        for(auto & pos : *itr){
-            printf("+++%ld\n",pos); fflush(stdout);
+    {
+        file_16_struct_type::value_type input[2] = {0.0,9.0}; // case2 : shrink  
+//        file_16_struct_type::value_type input[2] = {0,9}; // case2 : shrink  
+        auto fw = a.merge(input);
+    }
+    
+    {
+        file_16_struct_type::value_type input[2] = {12,13}; // case2 : shrink  
+        auto fw = a.merge(input);
+    }
+
+    {
+        debug_out_file_f<file_16_struct_type::value_type ,file_16_struct_type::offset_type >(stdout,fd,0,100);
+    }
+    
+    exit(0);
+    
+    
+    {
+        file_16_struct_type::value_type input[2] = {0,13}; // case2 : shrink  
+        //if(!a.exists(input)){ printf("not found\n");return 1; }
+        auto itr = a.gap_iterator_initialize(input);
+        if(itr){
+            for(auto & pos : *itr){
+                printf("+++%ld\n",pos); fflush(stdout);
+            }
+        }else{
+            printf("there is no gap.\n");
         }
-    }else{
-        printf("there is no gap.\n");
     }
     
     
