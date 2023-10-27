@@ -11,18 +11,15 @@ git_clone(https://raw.githubusercontent.com/kautils/CMakeLibrarytemplate/v0.0.1/
 git_clone(https://raw.githubusercontent.com/kautils/CMakeFetchKautilModule/v1.0.1/CMakeFetchKautilModule.cmake)
 
 
-# todo : kautil_cmake is broken because of just befor change
-# todo : FORCE_UPDATE causes error about 'path length limitation'
-
 CMakeFetchKautilModule(${m}_kautil_gap   GIT https://github.com/kautils/range.gap.git REMOTE origin BRANCH v0.0)
-CMakeFetchKautilModule(${m}_kautil_merge GIT https://github.com/kautils/range.merge.git REMOTE origin BRANCH v0.0)
+CMakeFetchKautilModule(${m}_kautil_merge GIT https://github.com/kautils/range.merge.git REMOTE origin BRANCH v0.0) 
 CMakeFetchKautilModule(${m}_kautil_exists GIT https://github.com/kautils/range.exists.git REMOTE origin BRANCH v0.0)
 
 
 
 list(APPEND ${m}_unsetter  ${m}_cache_hpp)
 file(GLOB ${m}_cache_hpp ${CMAKE_CURRENT_LIST_DIR}/*.hpp)
-install(FILES ${${m}_gap_hpp} DESTINATION include/kautil/cache )
+install(FILES ${${m}_cache_hpp} DESTINATION include/kautil/cache )
 install(SCRIPT "${${${m}_kautil_merge.STRUCT_ID}.BUILD_DIR}/cmake_install.cmake")
 install(SCRIPT "${${${m}_kautil_exists.STRUCT_ID}.BUILD_DIR}/cmake_install.cmake")
 install(SCRIPT "${${${m}_kautil_gap.STRUCT_ID}.BUILD_DIR}/cmake_install.cmake")
