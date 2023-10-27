@@ -23,6 +23,7 @@ struct cache
     }
     ~cache(){}
     
+    using kautil::range::merge<pref_t>::set_diff;
     bool exists(value_type from, value_type to){
         return kautil::range::exists<pref_t>::exec(from,to);
     }
@@ -52,7 +53,7 @@ struct file_syscall_premitive{
 
     int fd=-1;
     char * buffer = 0;
-    offset_type buffer_size = 0;
+    offset_type buffer_size = 512;
     
     ~file_syscall_premitive(){ free(buffer); }
     offset_type block_size(){ return sizeof(value_type); }
@@ -97,22 +98,24 @@ using file_syscall_16b_f_pref= file_syscall_premitive<double>;
 
 
 
-//#include <vector>
-
 int main(){
     
     
+    // todo : kautil::range::merge<pref_t>::set_buffer may be curious.
     
     using value_type = uint64_t;
     using offset_type = long;
     auto f_ranges = fopen("tmain_kautil_range_exsits_interface.cache","w+b");
-    auto pref = file_syscall_16b_pref{.fd=fileno(f_ranges)};
+    auto pref = file_syscall_16b_pref{.fd=fileno(f_ranges),.buffer_size=512};
     
-    auto from = value_type(0),to = value_type(0);
+    auto from = value_type(0),to = value_type(0),diff=value_type(0);
+    diff=1;
     from = 10;to = 15;
     auto c = cache{&pref};
     auto exists = c.exists(from,to);
+    c.set_diff(diff);
     printf("%s\n",exists ? "exists":"not exists");
+    
     
     
     
