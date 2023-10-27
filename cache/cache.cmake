@@ -21,6 +21,7 @@ install(SCRIPT "${${${m}_kautil_merge.STRUCT_ID}.BUILD_DIR}/cmake_install.cmake"
 install(SCRIPT "${${${m}_kautil_exists.STRUCT_ID}.BUILD_DIR}/cmake_install.cmake")
 install(SCRIPT "${${${m}_kautil_gap.STRUCT_ID}.BUILD_DIR}/cmake_install.cmake")
 
+
 set(${m}_set_module_rangee_merge KautilRangeMerge.0.0.1)
 set(${m}_set_module_rangee_exists KautilRangeExists.0.0.1)
 set(${m}_set_module_rangee_gap KautilRangeGap.0.0.1)
@@ -53,6 +54,10 @@ set(${module_name}_common_pref
     EXPORT_NAME_PREFIX ${PROJECT_NAME}
     EXPORT_VERSION ${PROJECT_VERSION}
     EXPORT_VERSION_COMPATIBILITY AnyNewerVersion
+    LINK_LIBS 
+        kautil::range::merge::0.0.1::interface
+        kautil::range::exists::0.0.1::interface
+        kautil::range::gap::0.0.1::interface
         
     DESTINATION_INCLUDE_DIR include/kautil/cache
     DESTINATION_CMAKE_DIR cmake
@@ -62,12 +67,19 @@ set(${module_name}_common_pref
 CMakeLibraryTemplate(${module_name} EXPORT_LIB_TYPE interface ${${module_name}_common_pref} )
 #CMakeLibraryTemplate(${module_name} EXPORT_LIB_TYPE shared ${${module_name}_common_pref} )
 
+
+
+set(BUILD_TEST ON)
+
+if(${BUILD_TEST})
+
 set(__t ${${module_name}_interface_tmain})
 add_executable(${__t})
 target_sources(${__t} PRIVATE ${CMAKE_CURRENT_LIST_DIR}/unit_test.cc)
 target_link_libraries(${__t} PRIVATE ${${module_name}_interface})
 target_compile_definitions(${__t} PRIVATE ${${module_name}_interface_tmain_ppcs})
 
+endif()
 
 foreach(__v ${${m}_unsetter})
     unset(${__v})
