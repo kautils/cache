@@ -61,9 +61,6 @@ using file_syscall_16b_f_pref= file_syscall_premitive<double>;
 
 
 int main(){
-    // todo : kautil::range::merge<pref_t>::set_buffer may be curious.
-    
-    
     using value_type = uint64_t;
     using offset_type = long;
     auto f_ranges = fopen("tmain_kautil_range_exsits_interface.cache","w+b");
