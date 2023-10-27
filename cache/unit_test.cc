@@ -1,6 +1,7 @@
 #ifdef TMAIN_KAUTIL_CACHE_INTERFACE
 
 
+
 #include "kautil/range/exists/exists.hpp"
 #include "kautil/range/merge/merge.hpp"
 #include "kautil/range/gap/gap.hpp"
@@ -24,9 +25,8 @@ struct cache
     ~cache(){}
     
     using kautil::range::merge<pref_t>::set_diff;
-    bool exists(value_type from, value_type to){
-        return kautil::range::exists<pref_t>::exec(from,to);
-    }
+    bool exists(value_type from, value_type to){ return kautil::range::exists<pref_t>::exec(from,to); }
+    int merge(value_type from, value_type to){ return kautil::range::merge<pref_t>::exec(from,to); }
     
     
     
@@ -43,7 +43,7 @@ struct cache
 #include <stdint.h>
 #include <fcntl.h>
 #include <stdlib.h>
-
+#include "unistd.h"
 
 
 template<typename premitive>
@@ -112,12 +112,20 @@ int main(){
     diff=1;
     from = 10;to = 15;
     auto c = cache{&pref};
-    auto exists = c.exists(from,to);
     c.set_diff(diff);
-    printf("%s\n",exists ? "exists":"not exists");
     
     
+    auto lmb_test = [](auto * c,auto from,auto to){
+        if(!c->exists(from,to)){
+            printf("not exists\n");
+            c->merge(from,to);
+        }else{
+            printf("exists\n");
+        }
+    };
     
+    lmb_test(&c,from,to);
+    lmb_test(&c,from,to);
     
     
     return 0;
