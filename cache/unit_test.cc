@@ -18,7 +18,7 @@ struct cache
     cache(pref_t * pref) : pref(pref)
         ,kautil::range::merge<pref_t>(pref) 
         ,kautil::range::exists<pref_t>(pref) 
-        ,kautil::range::gap<pref_t>(pref) 
+        ,kautil::range::gap<pref_t>(pref)
     {
         
     }
@@ -27,7 +27,10 @@ struct cache
     using kautil::range::merge<pref_t>::set_diff;
     bool exists(value_type from, value_type to){ return kautil::range::exists<pref_t>::exec(from,to); }
     int merge(value_type from, value_type to){ return kautil::range::merge<pref_t>::exec(from,to); }
-    
+    kautil::range::gap<pref_t> gap(value_type from, value_type to){
+        kautil::range::gap<pref_t>::initialize(from,to);
+        return *this;
+    }
     
     
     pref_t * pref= 0;
@@ -102,7 +105,6 @@ int main(){
     
     
     // todo : kautil::range::merge<pref_t>::set_buffer may be curious.
-    
     using value_type = uint64_t;
     using offset_type = long;
     auto f_ranges = fopen("tmain_kautil_range_exsits_interface.cache","w+b");
@@ -126,8 +128,7 @@ int main(){
     
     lmb_test(&c,from,to);
     lmb_test(&c,from,to);
-    
-    
+    for(auto const& elem : c.gap(0,20))printf("l,r(%lld,%lld)\n",elem.l,elem.r);
     return 0;
 }
 
