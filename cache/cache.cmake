@@ -5,15 +5,15 @@ list(APPEND ${m}_unsetter )
 if(NOT EXISTS ${CMAKE_BINARY_DIR}/CMakeKautilHeader.v0.0.cmake)
     file(DOWNLOAD https://raw.githubusercontent.com/kautils/CMakeKautilHeader/v0.0/CMakeKautilHeader.cmake ${CMAKE_BINARY_DIR}/CMakeKautilHeader.v0.0.cmake)
 endif()
-
 include(${CMAKE_BINARY_DIR}/CMakeKautilHeader.cmake)
+
 git_clone(https://raw.githubusercontent.com/kautils/CMakeLibrarytemplate/v0.0.1/CMakeLibrarytemplate.cmake)
 git_clone(https://raw.githubusercontent.com/kautils/CMakeFetchKautilModule/v1.0.1/CMakeFetchKautilModule.cmake)
 
 
 CMakeFetchKautilModule(${m}_kautil_gap   GIT https://github.com/kautils/range.gap.git REMOTE origin BRANCH v0.0)
-CMakeFetchKautilModule(${m}_kautil_merge GIT https://github.com/kautils/range.merge.git REMOTE origin BRANCH v0.0) 
-CMakeFetchKautilModule(${m}_kautil_exists GIT https://github.com/kautils/range.exists.git REMOTE origin BRANCH v0.0)
+CMakeFetchKautilModule(${m}_kautil_merge GIT https://github.com/kautils/range.merge.git REMOTE origin BRANCH v0.0 ) 
+CMakeFetchKautilModule(${m}_kautil_exists GIT https://github.com/kautils/range.exists.git REMOTE origin BRANCH v0.0 )
 
 
 
