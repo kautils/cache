@@ -10,9 +10,15 @@ include(${CMAKE_BINARY_DIR}/CMakeKautilHeader.cmake)
 git_clone(https://raw.githubusercontent.com/kautils/CMakeLibrarytemplate/v0.0.1/CMakeLibrarytemplate.cmake)
 git_clone(https://raw.githubusercontent.com/kautils/CMakeFetchKautilModule/v1.0.1/CMakeFetchKautilModule.cmake)
 
+
+# todo : kautil_cmake is broken because of just befor change
+# todo : FORCE_UPDATE causes error about 'path length limitation'
+
 CMakeFetchKautilModule(${m}_kautil_gap   GIT https://github.com/kautils/range.gap.git REMOTE origin BRANCH v0.0)
 CMakeFetchKautilModule(${m}_kautil_merge GIT https://github.com/kautils/range.merge.git REMOTE origin BRANCH v0.0)
 CMakeFetchKautilModule(${m}_kautil_exists GIT https://github.com/kautils/range.exists.git REMOTE origin BRANCH v0.0)
+
+
 
 list(APPEND ${m}_unsetter  ${m}_cache_hpp)
 file(GLOB ${m}_cache_hpp ${CMAKE_CURRENT_LIST_DIR}/*.hpp)
@@ -43,6 +49,7 @@ foreach(export_mod
         "\n"
     )
 endforeach()
+
 
 
 set(module_name cache)

@@ -7,7 +7,6 @@
 #include <stdlib.h>
 #include "unistd.h"
 
-
 template<typename premitive>
 struct file_syscall_premitive{
     using value_type = premitive;
