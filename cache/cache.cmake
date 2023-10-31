@@ -22,7 +22,7 @@ set(${m}_kautil_merge_v v0.0)
 set(${m}_kautil_exists_v v0.0)
 CMakeFetchKautilModule(${m}_kautil_gap  GIT https://github.com/kautils/range.gap.git REMOTE origin BRANCH ${${m}_kautil_gap_v} PROJECT_SUFFIX ${${m}_kautil_gap_v})
 CMakeFetchKautilModule(${m}_kautil_merge GIT https://github.com/kautils/range.merge.git REMOTE origin BRANCH ${${m}_kautil_merge_v} PROJECT_SUFFIX ${${m}_kautil_merge_v}) 
-CMakeFetchKautilModule(${m}_kautil_exists GIT https://github.com/kautils/range.exists.git REMOTE origin BRANCH ${${m}_kautil_exists_v} PROJECT_SUFFIX ${${m}_kautil_exists_v} FORCE_BUILD)
+CMakeFetchKautilModule(${m}_kautil_exists GIT https://github.com/kautils/range.exists.git REMOTE origin BRANCH ${${m}_kautil_exists_v} PROJECT_SUFFIX ${${m}_kautil_exists_v})
 
 list(APPEND ${m}_unsetter  ${m}_cache_hpp)
 file(GLOB ${m}_cache_hpp ${CMAKE_CURRENT_LIST_DIR}/*.hpp)
@@ -77,17 +77,14 @@ CMakeLibraryTemplate(${module_name} EXPORT_LIB_TYPE interface ${${module_name}_c
 #CMakeLibraryTemplate(${module_name} EXPORT_LIB_TYPE shared ${${module_name}_common_pref} )
 
 
-
 set(BUILD_TEST ON)
 
 if(${BUILD_TEST})
-
 set(__t ${${module_name}_interface_tmain})
 add_executable(${__t})
 target_sources(${__t} PRIVATE ${CMAKE_CURRENT_LIST_DIR}/unit_test.cc)
 target_link_libraries(${__t} PRIVATE ${${module_name}_interface})
 target_compile_definitions(${__t} PRIVATE ${${module_name}_interface_tmain_ppcs})
-
 endif()
 
 foreach(__v ${${m}_unsetter})
