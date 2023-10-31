@@ -65,11 +65,13 @@ set(${module_name}_common_pref
     EXPORT_RENAME ${KAUTIL_PROJECT_RENAME}
     EXPORT_VERSION ${PROJECT_VERSION}
     EXPORT_VERSION_COMPATIBILITY AnyNewerVersion
+    EXPORT_CONFIG_IN_ADDITIONAL_CONTENT_AFTER ${${m}_findpkgs} 
+        
     LINK_LIBS 
         kautil::range::merge::${${m}_kautil_merge_v}::interface
         kautil::range::exists::${${m}_kautil_exists_v}::interface
         kautil::range::gap::${${m}_kautil_gap_v}::interface
-
+        
     DESTINATION_INCLUDE_DIR include/kautil/cache
     DESTINATION_CMAKE_DIR cmake
     DESTINATION_LIB_DIR lib
