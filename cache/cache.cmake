@@ -16,7 +16,6 @@ endif()
 git_clone(https://raw.githubusercontent.com/kautils/CMakeLibrarytemplate/v0.0.1/CMakeLibrarytemplate.cmake)
 git_clone(https://raw.githubusercontent.com/kautils/CMakeFetchKautilModule/v1.0.1/CMakeFetchKautilModule.cmake)
 
-
 list(APPEND ${m}_unsetter ${m}_kautil_gap_v ${m}_kautil_merge_v ${m}_kautil_exists_v)
 set(${m}_kautil_gap_v v0.0)
 set(${m}_kautil_merge_v v0.0)
@@ -79,7 +78,7 @@ CMakeLibraryTemplate(${module_name} EXPORT_LIB_TYPE interface ${${module_name}_c
 
 
 
-#set(BUILD_TEST ON)
+set(BUILD_TEST ON)
 
 if(${BUILD_TEST})
 
