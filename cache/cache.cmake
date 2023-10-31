@@ -17,11 +17,13 @@ git_clone(https://raw.githubusercontent.com/kautils/CMakeLibrarytemplate/v0.0.1/
 git_clone(https://raw.githubusercontent.com/kautils/CMakeFetchKautilModule/v1.0.1/CMakeFetchKautilModule.cmake)
 
 
-CMakeFetchKautilModule(${m}_kautil_gap   GIT https://github.com/kautils/range.gap.git REMOTE origin BRANCH v0.0)
-CMakeFetchKautilModule(${m}_kautil_merge GIT https://github.com/kautils/range.merge.git REMOTE origin BRANCH v0.0 ) 
-CMakeFetchKautilModule(${m}_kautil_exists GIT https://github.com/kautils/range.exists.git REMOTE origin BRANCH v0.0 )
-
-
+list(APPEND ${m}_unsetter ${m}_kautil_gap_v ${m}_kautil_merge_v ${m}_kautil_exists_v)
+set(${m}_kautil_gap_v v0.0)
+set(${m}_kautil_merge_v v0.0)
+set(${m}_kautil_exists_v v0.0)
+CMakeFetchKautilModule(${m}_kautil_gap  GIT https://github.com/kautils/range.gap.git REMOTE origin BRANCH ${${m}_kautil_gap_v} PROJECT_SUFFIX ${${m}_kautil_gap_v})
+CMakeFetchKautilModule(${m}_kautil_merge GIT https://github.com/kautils/range.merge.git REMOTE origin BRANCH ${${m}_kautil_merge_v} PROJECT_SUFFIX ${${m}_kautil_merge_v}) 
+CMakeFetchKautilModule(${m}_kautil_exists GIT https://github.com/kautils/range.exists.git REMOTE origin BRANCH ${${m}_kautil_exists_v} PROJECT_SUFFIX ${${m}_kautil_exists_v} FORCE_BUILD)
 
 list(APPEND ${m}_unsetter  ${m}_cache_hpp)
 file(GLOB ${m}_cache_hpp ${CMAKE_CURRENT_LIST_DIR}/*.hpp)
@@ -30,20 +32,19 @@ install(SCRIPT "${${${m}_kautil_merge.STRUCT_ID}.BUILD_DIR}/cmake_install.cmake"
 install(SCRIPT "${${${m}_kautil_exists.STRUCT_ID}.BUILD_DIR}/cmake_install.cmake")
 install(SCRIPT "${${${m}_kautil_gap.STRUCT_ID}.BUILD_DIR}/cmake_install.cmake")
 
+set(${m}_set_module_range_gap KautilRangeGap.${${m}_kautil_gap_v})
+set(${m}_set_module_range_exists KautilRangeExists.${${m}_kautil_exists_v})
+set(${m}_set_module_range_merge KautilRangeMerge.${${m}_kautil_merge_v})
 
-set(${m}_set_module_rangee_merge KautilRangeMerge.0.0.1)
-set(${m}_set_module_rangee_exists KautilRangeExists.0.0.1)
-set(${m}_set_module_rangee_gap KautilRangeGap.0.0.1)
-
-find_package(${${m}_set_module_rangee_merge}.interface REQUIRED)
-find_package(${${m}_set_module_rangee_exists}.interface REQUIRED)
-find_package(${${m}_set_module_rangee_gap}.interface REQUIRED)
+find_package(${${m}_set_module_range_merge}.interface REQUIRED)
+find_package(${${m}_set_module_range_gap}.interface REQUIRED)
+find_package(${${m}_set_module_range_exists}.interface REQUIRED)
 
 foreach(export_mod
-        ${${m}_set_module_rangee_merge}
-        ${${m}_set_module_rangee_exists}
-        ${${m}_set_module_rangee_gap}
-)
+        ${${m}_set_module_range_merge}
+        ${${m}_set_module_range_exists}
+        ${${m}_set_module_range_gap})
+
     string(APPEND ${m}_findpkgs
         "if(EXISTS \"\\$\\{PACKAGE_PREFIX_DIR}/lib/cmake/${export_mod}\")\n"
         "\t set(${export_mod}.interface_DIR \"\\$\\{PACKAGE_PREFIX_DIR}/lib/cmake/${export_mod}\")\n"
@@ -52,7 +53,6 @@ foreach(export_mod
         "\n"
     )
 endforeach()
-
 
 
 set(module_name cache)
@@ -65,10 +65,10 @@ set(${module_name}_common_pref
     EXPORT_VERSION ${PROJECT_VERSION}
     EXPORT_VERSION_COMPATIBILITY AnyNewerVersion
     LINK_LIBS 
-        kautil::range::merge::0.0.1::interface
-        kautil::range::exists::0.0.1::interface
-        kautil::range::gap::0.0.1::interface
-        
+        kautil::range::merge::${${m}_kautil_merge_v}::interface
+        kautil::range::exists::${${m}_kautil_exists_v}::interface
+        kautil::range::gap::${${m}_kautil_gap_v}::interface
+
     DESTINATION_INCLUDE_DIR include/kautil/cache
     DESTINATION_CMAKE_DIR cmake
     DESTINATION_LIB_DIR lib
@@ -79,7 +79,7 @@ CMakeLibraryTemplate(${module_name} EXPORT_LIB_TYPE interface ${${module_name}_c
 
 
 
-set(BUILD_TEST ON)
+#set(BUILD_TEST ON)
 
 if(${BUILD_TEST})
 
